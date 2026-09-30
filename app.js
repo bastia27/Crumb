@@ -2181,7 +2181,7 @@ function openFoodEditor(id, preset = {}, onSaved, onBack) {
   const a = id ? foodById(id) : null;
   const isBase = a?.base;
   const v = a || { nome: '', alias: [], kcal: '', p: '', cn: '', f: '', na: 0, porz: 100, tag: [], unita: {}, ...preset };
-  const ctot = a ? r1(a.cn + a.f) : '';
+  const ctot = a ? r1(a.cn) : '';
   openSheet(`<h2>${a ? 'Modifica alimento' : 'Nuovo alimento'}</h2>
     ${isBase ? '<p class="small muted">Alimento precaricato: le modifiche restano sul dispositivo e si possono annullare.</p>' : ''}
     ${a?.stima && !S.override[a.id] ? '<p class="small txt-bad">Valori stimati, non presi dall\'etichetta: correggili con quelli della confezione e salva.</p>' : ''}
@@ -2191,9 +2191,12 @@ function openFoodEditor(id, preset = {}, onSaved, onBack) {
     <div class="grid2">
       <label class="f"><span>Kcal</span><input class="inp num" id="fk" inputmode="decimal" value="${v.kcal}"></label>
       <label class="f"><span>Proteine (g)</span><input class="inp num" id="fp" inputmode="decimal" value="${v.p}"></label>
-      <label class="f"><span>Carboidrati totali (g)</span><input class="inp num" id="fc" inputmode="decimal" value="${ctot}"></label>
+      <label class="f"><span>Carboidrati (g, come in etichetta)</span><input class="inp num" id="fc" inputmode="decimal" value="${ctot}"></label>
       <label class="f"><span>Fibra (g)</span><input class="inp num" id="ff" inputmode="decimal" value="${v.f}"></label>
     </div>
+    <label class="f"><span>Tipo di etichetta</span><select class="inp" id="fct">
+      <option value="ue" selected>Europea: i carboidrati sono già senza fibra</option>
+      <option value="tot">Totali (USA o tabelle con la fibra inclusa)</option></select></label>
     <p class="small num" id="fnet" style="margin:-4px 0 12px"></p>
     <div class="grid2">
       <label class="f"><span>Sodio (mg)</span><input class="inp num" id="fna" inputmode="decimal" value="${v.na}"></label>
@@ -2204,10 +2207,12 @@ function openFoodEditor(id, preset = {}, onSaved, onBack) {
     <div class="sheet-actions">${a ? (isBase ? (S.override[a.id] ? '<button class="btn" id="freset">Ripristina</button>' : '<button class="btn danger" id="fhide">Nascondi</button>') : '<button class="btn danger" id="fdel">Elimina</button>') : '<button class="btn" id="fback">Annulla</button>'}<button class="btn primary" id="fok">Salva</button></div>`, (el) => {
     const net = () => {
       const c = num($('#fc', el).value), f = num($('#ff', el).value) || 0;
-      $('#fnet', el).textContent = c != null ? `Carboidrati netti: ${fmt(Math.max(0, c - f), 1)} g (totali − fibra)` : '';
+      const ue = $('#fct', el).value === 'ue';
+      $('#fnet', el).textContent = c != null ? `Carboidrati netti: ${fmt(Math.max(0, ue ? c : c - f), 1)} g${ue ? ' (in Europa il valore in etichetta è già netto)' : ' (totali − fibra)'}` : '';
     };
     net();
     $('#fc', el).addEventListener('input', net);
+    $('#fct', el).addEventListener('change', net);
     $('#ff', el).addEventListener('input', net);
     $('#fback', el)?.addEventListener('click', () => (onBack ? onBack() : closeSheet()));
     $('#fok', el).addEventListener('click', () => {
@@ -2222,7 +2227,7 @@ function openFoodEditor(id, preset = {}, onSaved, onBack) {
         alias: $('#fa', el).value.split(',').map((s) => s.trim()).filter(Boolean),
         kcal,
         p: num($('#fp', el).value) || 0,
-        cn: r1(Math.max(0, c - f)),
+        cn: r1(Math.max(0, $('#fct', el).value === 'ue' ? c : c - f)),
         f,
         na: num($('#fna', el).value) || 0,
         porz: num($('#fpz', el).value) || 100,

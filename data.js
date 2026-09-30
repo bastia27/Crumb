@@ -206,7 +206,8 @@ ALIMENTI_BASE.push(
   _A('crauti', 'Crauti', ['crauti'], 19, 0.9, 1.4, 2.9, 661, 100, ['verdura', 'processato']),
   _A('passata', 'Passata di pomodoro', ['passata', 'passata di pomodoro', 'sugo', 'sugo di pomodoro', 'pelati', 'polpa di pomodoro'], 24, 1.3, 3.7, 1.2, 10, 100, ['verdura'], { cucchiaio: 20 }),
   _A('minestrone', 'Minestrone di verdure', ['minestrone', 'zuppa di verdure', 'passato di verdure', 'vellutata'], 45, 2, 6, 2.5, 200, 250, ['verdura']),
-  { ..._A('vellutata-carciofi-conad', 'Vellutata di carciofi Conad', ['vellutata di carciofi conad', 'vellutata di carciofi', 'vellutata carciofi', 'crema di carciofi'], 48, 1.4, 4.5, 1.8, 320, 300, ['verdura']), stima: true },
+  // Da etichetta Conad (100 g: 38 kcal, grassi 1,0, carboidrati 5,4, fibre 1,2, proteine 1,3, sale 0,68 g). Confezione 620 g = 2 porzioni da 310 g.
+  _A('vellutata-carciofi-conad', 'Vellutata ai carciofi Conad', ['vellutata ai carciofi conad', 'vellutata di carciofi conad', 'vellutata ai carciofi', 'vellutata di carciofi', 'vellutata carciofi', 'crema di carciofi'], 38, 1.3, 5.4, 1.2, 272, 310, ['verdura'], { confezione: 620, porzione: 310 }),
   _A('verdure-grigliate', 'Verdure grigliate', ['verdure grigliate', 'grigliata di verdure', 'verdure miste'], 30, 1.3, 3.5, 2.3, 10, 200, ['verdura']),
   _A('parmigiana', 'Parmigiana di melanzane', ['parmigiana', 'parmigiana di melanzane'], 150, 6.5, 6, 2.5, 350, 250, ['verdura', 'latticino']),
 
