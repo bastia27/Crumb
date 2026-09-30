@@ -43,16 +43,43 @@ const DEFAULT_SETTINGS = {
     { tag: '@colazione', tipo: 'min', n: 5 },
   ],
 };
-// Impostazioni pronte per carbo e fibra: cambiano solo questi campi, kcal e proteine restano le tue.
-// Mediterranea: con proteine a 150–180 g (~30% delle kcal) e grassi al 25–30%, ai carboidrati resta
-// circa il 40% delle kcal: 200–230 g totali, cioè ~170–200 g netti. Minimo ~120 g netti (~150 g totali).
-const IMPOSTAZIONI_CARBO = {
-  chetogenica: { nome: 'Chetogenica', carboMin: 0, carboMax: 30, fibraMin: 25, fibraMax: 30, fibraBassa: 15, fibraAlta: 35 },
-  mediterranea: { nome: 'Mediterranea', carboMin: 120, carboMax: 200, fibraMin: 30, fibraMax: 40, fibraBassa: 20, fibraAlta: 50 },
+// Impostazioni alimentari pronte. Cambiano carbo, fibra, sodio e regole settimanali;
+// kcal e proteine restano quelle dell'utente (con 150–180 g di proteine, ~30% delle kcal,
+// ai carboidrati resta al massimo ~40% delle kcal: da qui i tetti delle diete "ad alti carbo").
+const R_ = (tag, tipo, n) => ({ tag, tipo, n });
+const IMPOSTAZIONI_DIETA = {
+  chetogenica: {
+    nome: 'Chetogenica', desc: 'Carbo netti max 30 g, fibra 25–30 g.',
+    set: { carboMin: 0, carboMax: 30, fibraMin: 25, fibraMax: 30, fibraBassa: 15, fibraAlta: 35, sodioMax: 3000 },
+    regole: DEFAULT_SETTINGS.regole,
+  },
+  lowcarb: {
+    nome: 'Low-carb moderata', desc: 'Carbo netti 50–100 g, fibra 25–35 g. Utile per uscire dalla chetogenica.',
+    set: { carboMin: 50, carboMax: 100, fibraMin: 25, fibraMax: 35, fibraBassa: 15, fibraAlta: 40, sodioMax: 3000 },
+    regole: [R_('pesce', 'min', 3), R_('pesce-azzurro', 'min', 2), R_('verdura', 'min', 10), R_('carne-rossa', 'max', 2), R_('processato', 'max', 2), R_('@colazione', 'min', 5)],
+  },
+  mediterranea: {
+    nome: 'Mediterranea', desc: 'Carbo netti 120–200 g, fibra 30–40 g, legumi e frutta secca ogni settimana.',
+    set: { carboMin: 120, carboMax: 200, fibraMin: 30, fibraMax: 40, fibraBassa: 20, fibraAlta: 50, sodioMax: 3000 },
+    regole: [R_('pesce', 'min', 3), R_('pesce-azzurro', 'min', 2), R_('legume', 'min', 3), R_('frutta-secca', 'min', 3), R_('carne-rossa', 'max', 1), R_('processato', 'max', 1), R_('@colazione', 'min', 5)],
+  },
+  dash: {
+    nome: 'DASH', desc: 'Sodio max 2.300 mg, carbo netti 130–210 g, fibra 30–40 g, tanta verdura.',
+    set: { carboMin: 130, carboMax: 210, fibraMin: 30, fibraMax: 40, fibraBassa: 20, fibraAlta: 50, sodioMax: 2300 },
+    regole: [R_('verdura', 'min', 14), R_('legume', 'min', 3), R_('frutta-secca', 'min', 4), R_('pesce', 'min', 2), R_('carne-rossa', 'max', 1), R_('processato', 'max', 1), R_('@colazione', 'min', 5)],
+  },
+  flessitariana: {
+    nome: 'Flessitariana', desc: 'Prevalentemente vegetale: legumi 6 volte, carne al massimo 4. Carbo netti 130–220 g, fibra 35–45 g.',
+    set: { carboMin: 130, carboMax: 220, fibraMin: 35, fibraMax: 45, fibraBassa: 25, fibraAlta: 55, sodioMax: 3000 },
+    regole: [R_('legume', 'min', 6), R_('frutta-secca', 'min', 5), R_('pesce', 'min', 2), R_('carne-bianca', 'max', 3), R_('carne-rossa', 'max', 1), R_('processato', 'max', 1), R_('@colazione', 'min', 5)],
+  },
 };
 function impostazioneAttiva() {
   const st = S.settings;
-  return Object.keys(IMPOSTAZIONI_CARBO).find((k) => Object.entries(IMPOSTAZIONI_CARBO[k]).every(([f, v]) => f === 'nome' || st[f] === v)) || null;
+  return Object.keys(IMPOSTAZIONI_DIETA).find((k) => {
+    const d = IMPOSTAZIONI_DIETA[k];
+    return Object.entries(d.set).every(([f, v]) => st[f] === v) && JSON.stringify(st.regole) === JSON.stringify(d.regole);
+  }) || null;
 }
 // Default della prima versione: se l'utente non li ha toccati, passano ai nuovi.
 const REGOLE_V1 = '[{"tag":"pesce","tipo":"min","n":3},{"tag":"pesce-azzurro","tipo":"min","n":2},{"tag":"carne-rossa","tipo":"max","n":3},{"tag":"processato","tipo":"max","n":3},{"tag":"verdura","tipo":"min","n":10}]';
@@ -678,8 +705,9 @@ function weekStats(endKey, includeToday = true) {
 
 /* ——— Ricette: porzione, tag calcolati ——— */
 
-const RICETTA_SOGLIE = { proteico: 35, fibraAlta: 8, sodioBasso: 300, veloce: 15 };
-const RECIPE_TAGS = ['proteico', 'fibra-alta', 'sodio-basso', 'pesce-azzurro', 'legumi', 'veloce', 'batch', 'senza-cottura'];
+const RICETTA_SOGLIE = { proteico: 35, fibraAlta: 8, sodioBasso: 300, veloce: 15, lowCarb: 12 };
+const RECIPE_TAGS = ['proteico', 'low-carb', 'fibra-alta', 'sodio-basso', 'pesce-azzurro', 'legumi', 'vegetariana', 'veloce', 'batch', 'senza-cottura'];
+const TAG_CARNE_PESCE = ['carne-bianca', 'carne-rossa', 'pesce'];
 
 function recipePortion(r) {
   const info = recipeInfo(r);
@@ -689,6 +717,8 @@ function recipeTags(r) {
   const n = recipePortion(r);
   const tags = new Set(r.tag || []);
   if (n.p > RICETTA_SOGLIE.proteico) tags.add('proteico');
+  if (n.cn <= RICETTA_SOGLIE.lowCarb) tags.add('low-carb');
+  if (!r.ingredienti.some((ing) => (foodById(ing.fid)?.tag || []).some((t) => TAG_CARNE_PESCE.includes(t)))) tags.add('vegetariana');
   if (n.f >= RICETTA_SOGLIE.fibraAlta) tags.add('fibra-alta');
   if (n.na <= RICETTA_SOGLIE.sodioBasso) tags.add('sodio-basso');
   if (r.tempo && r.tempo < RICETTA_SOGLIE.veloce) tags.add('veloce');
@@ -1925,9 +1955,9 @@ function viewImpostazioni() {
   </div></details>
 
   <details class="sec"><summary>Target giornalieri</summary><div class="body">
-    <span class="small muted">Carboidrati e fibra</span>
-    <div class="seg" id="impCarbo" style="margin-top:4px">${Object.entries(IMPOSTAZIONI_CARBO).map(([k, v]) => `<button data-imp="${k}" aria-pressed="${impostazioneAttiva() === k}">${v.nome}</button>`).join('')}<button disabled aria-pressed="${!impostazioneAttiva()}">Personalizzata</button></div>
-    <p class="small muted" style="margin-top:-4px">${impostazioneAttiva() === 'mediterranea' ? 'Carbo netti 120–200 g, fibra 30–40 g. Kcal e proteine restano le tue.' : impostazioneAttiva() === 'chetogenica' ? 'Carbo netti max 30 g, fibra 25–30 g. Kcal e proteine restano le tue.' : 'Valori tuoi. Tocca un\'impostazione per ricaricarne i valori.'}</p>
+    <span class="small muted">Impostazione alimentare · cambia carbo, fibra, sodio e regole settimanali; kcal e proteine restano le tue</span>
+    <div class="list" id="impDieta" style="margin:6px 0 16px">${Object.entries(IMPOSTAZIONI_DIETA).map(([k, v]) => `<button class="li" data-imp="${k}" aria-pressed="${impostazioneAttiva() === k}"><span class="nm">${esc(v.nome)}<small>${esc(v.desc)}</small></span><span class="check">${impostazioneAttiva() === k ? '✓' : ''}</span></button>`).join('')}
+      ${impostazioneAttiva() ? '' : '<div class="li"><span class="nm">Personalizzata<small>I valori qui sotto sono tuoi. Tocca un\'impostazione per ricaricarne i valori.</small></span><span class="check">✓</span></div>'}</div>
     <div class="grid2">${field('kcalMin', 'Kcal minimo', st.kcalMin)}${field('kcalMax', 'Kcal massimo', st.kcalMax)}</div>
     <div class="grid2">${field('protMin', 'Proteine minimo', st.protMin, 'g')}${field('protMax', 'Proteine massimo', st.protMax, 'g')}</div>
     <div class="grid2">${field('carboMin', 'Carbo netti minimo (0 = nessuno)', st.carboMin, 'g')}${field('carboMax', 'Carbo netti massimo', st.carboMax, 'g')}</div>
@@ -2090,7 +2120,7 @@ function openRecipeEditor(id) {
     <div id="rprev" class="small"></div>
     <label class="f"><span>Procedimento (max 4 righe)</span><textarea class="inp" id="rproc" rows="4">${esc((r?.procedimento || []).join('\n'))}</textarea></label>
     <div class="f"><span class="small muted">Tag manuali (gli altri li calcola l'app dai numeri)</span><div class="chips" style="margin-top:6px">${['batch', 'senza-cottura'].map((t) => `<label class="chip tagchk"><input type="checkbox" value="${t}" ${(r?.tag || []).includes(t) ? 'checked' : ''}>${t}</label>`).join('')}</div></div>
-    ${r ? `<p class="small muted">Tag calcolati: ${recipeTags(r).join(', ') || 'nessuno'}. Proteico &gt;${RICETTA_SOGLIE.proteico} g proteine, fibra-alta ≥${RICETTA_SOGLIE.fibraAlta} g, sodio-basso ≤${RICETTA_SOGLIE.sodioBasso} mg a porzione, veloce &lt;${RICETTA_SOGLIE.veloce} min.</p>` : ''}
+    ${r ? `<p class="small muted">Tag calcolati: ${recipeTags(r).join(', ') || 'nessuno'}. Proteico &gt;${RICETTA_SOGLIE.proteico} g proteine, low-carb ≤${RICETTA_SOGLIE.lowCarb} g carbo netti, fibra-alta ≥${RICETTA_SOGLIE.fibraAlta} g, sodio-basso ≤${RICETTA_SOGLIE.sodioBasso} mg a porzione, veloce &lt;${RICETTA_SOGLIE.veloce} min.</p>` : ''}
     <div class="sheet-actions">${r ? (r.base ? '<button class="btn danger" id="rhide">Nascondi</button>' : '<button class="btn danger" id="rdel">Elimina</button>') : '<button class="btn" data-close>Annulla</button>'}<button class="btn primary" id="rok">Salva</button></div>`, (el) => {
     const upd = () => {
       const rows = parseInput($('#ri', el).value).filter((x) => x.src);
@@ -2243,13 +2273,13 @@ function bindView(main) {
     save();
   }));
   $$('[data-imp]', main).forEach((b) => b.addEventListener('click', () => {
-    const imp = IMPOSTAZIONI_CARBO[b.dataset.imp];
+    const imp = IMPOSTAZIONI_DIETA[b.dataset.imp];
     const prima = structuredClone(S.settings);
-    for (const [f, v] of Object.entries(imp)) if (f !== 'nome') S.settings[f] = v;
+    Object.assign(S.settings, imp.set, { regole: structuredClone(imp.regole) });
     save();
     render();
-    $('#impCarbo')?.closest('details')?.setAttribute('open', '');
-    toast(`${imp.nome}: carbo netti ${imp.carboMin ? `${imp.carboMin}–` : 'max '}${imp.carboMax} g`, 'Annulla', () => {
+    $('#impDieta')?.closest('details')?.setAttribute('open', '');
+    toast(`${imp.nome}: carbo netti ${imp.set.carboMin ? `${imp.set.carboMin}–` : 'max '}${imp.set.carboMax} g, ${imp.regole.length} regole`, 'Annulla', () => {
       S.settings = prima;
       save();
       render();
