@@ -436,7 +436,7 @@ function matchIndex() {
     const names = new Set([a.nome, ...(a.alias || [])]);
     idx.push({ kind: 'food', item: a, keys: [...names].map(tokens).filter((t) => t.length), raw: new Set([...names].map((n) => rawTokens(n).join(' '))) });
   }
-  for (const r of allRecipes()) {
+  for (const r of [...allRecipes(), ...(typeof PIATTI_BASE !== 'undefined' ? PIATTI_BASE : [])]) {
     const names = [r.nome, ...(r.alias || [])];
     idx.push({ kind: 'recipe', item: r, keys: names.map(tokens).filter((t) => t.length), raw: new Set(names.map((n) => rawTokens(n).join(' '))) });
   }
@@ -532,6 +532,8 @@ function resolveGrams(entry, qty) {
     return { g: grams.n * mult, nota: '', inc: 0 };
   }
   const q = qty[0];
+  if (!q && isRecipe) return { g: target.porz, nota: '1 porzione', stimato: true, inc: INC.porzione };
+  if (q && isRecipe && !q.unit && q.n < 15) return { g: q.n * target.porz, nota: `${fmt(q.n, q.n % 1 ? 1 : 0)} ${q.n === 1 ? 'porzione' : 'porzioni'}`, inc: INC.porzione };
   if (!q) {
     return { g: pezzo ?? target.porz, nota: pezzo ? '1 pezzo' : 'porzione standard', stimato: true, inc: pezzo ? INC.pezzo : INC.porzione };
   }
@@ -563,13 +565,100 @@ function segments(text) {
   return out;
 }
 
+/* ——— Metodi di cottura: alimento + condimento tipico, in proporzione al peso ——— */
+
+// Per ogni condimento: grammi ogni 100 g di alimento principale, con minimo e massimo.
+const METODI = [
+  { id: 'impanato', label: 'impanato', re: /\b(impanat[oaie]|panat[oaie]|alla milanese|cotolett[ae] di)\b/,
+    cond: [['uova', 20, 10, 60], ['pangrattato', 12, 10, 50], ['olio-evo', 10, 10, 30]] },
+  { id: 'fritto', label: 'fritto', re: /\b(fritt[oaie]|frittura di|in frittura)\b/,
+    cond: [['olio-semi', 12, 10, 40], ['farina', 5, 0, 20, 'infarina']] },
+  { id: 'sugo', label: 'al sugo', re: /\b(al sugo|al pomodoro|in umido|alla pizzaiola|in salsa)\b/,
+    cond: [['passata', 60, 100, 200], ['olio-evo', 4, 5, 15]] },
+  { id: 'gratinato', label: 'gratinato', re: /\b(gratinat[oaie]|al gratin|gratin)\b/,
+    cond: [['pangrattato', 5, 5, 20], ['parmigiano', 5, 5, 20], ['olio-evo', 4, 5, 15]] },
+  { id: 'padella', label: 'in padella', re: /\b(in padella|saltat[oaie]|trifolat[oaie]|rosolat[oaie]|in tegame|scottat[oaie]|ripassat[oaie]|stufat[oaie])\b/,
+    cond: [['olio-evo', 5, 5, 20]] },
+  { id: 'forno', label: 'al forno', re: /\b(al forno|arrost[oaie]|arrosto|al cartoccio)\b/,
+    cond: [['olio-evo', 5, 5, 20]] },
+  { id: 'griglia', label: 'alla griglia', re: /\b(alla griglia|grigliat[oaie]|alla piastra|ai ferri|alla brace)\b/,
+    cond: [['olio-evo', 3, 3, 10]] },
+  { id: 'insalata', label: 'in insalata', re: /\b(in insalata|condit[oaie])\b/,
+    cond: [['olio-evo', 5, 5, 15]] },
+  { id: 'lesso', label: 'lesso', re: /\b(less[oaie]|bollit[oaie]|al vapore|sod[oaie]|in camicia|in brodo)\b/, cond: [] },
+];
+const INC_CONDIMENTO = 0.4;
+
+function detectMethod(query) {
+  const q = ` ${norm(query)} `;
+  for (const m of METODI) {
+    const hit = q.match(m.re);
+    if (hit) {
+      const rest = q.replace(hit[0], ' ').replace(/\s+/g, ' ').trim();
+      if (rest) return { m, rest, parola: hit[0].trim() };
+    }
+  }
+  return null;
+}
+
+// Alimento + metodo → piatto composto al volo (stessa forma di una ricetta da 1 porzione).
+function composeDish(food, m, qty, parola) {
+  const res = resolveGrams({ kind: 'food', item: food }, qty);
+  const g = r0(res.g);
+  const ingredienti = [{ fid: food.id, g, inc: res.inc || 0 }];
+  for (const [fid, per100, min, max, only] of m.cond) {
+    if (only === 'infarina' && !(food.tag || []).some((t) => ['pesce', 'verdura'].includes(t))) continue;
+    if (!foodById(fid)) continue;
+    const gc = clamp((g * per100) / 100, min, max);
+    if (gc > 0) ingredienti.push({ fid, g: gc < 10 ? Math.round(gc) : Math.round(gc / 5) * 5, inc: INC_CONDIMENTO });
+  }
+  return { id: `m-${food.id}-${m.id}`, nome: `${food.nome.replace(/\s*\(.*?\)/g, '')} ${parola || m.label}`, porzioni: 1, piatto: true, composto: true, ingredienti, nota: res.nota };
+}
+
+// Ingredienti di un piatto/ricetta scalati sui grammi totali scelti.
+function expandDish(r, totalG, inc) {
+  const f = totalG / recipeInfo(r).pesoTot;
+  return r.ingredienti.map((ing) => ({ fid: ing.fid, g: r0(ing.g * f), inc: ing.inc ?? inc ?? 0 })).filter((x) => foodById(x.fid));
+}
+
+// Assegna a una riga l'alimento o il piatto scelto e ne calcola i grammi.
+function setRowPick(row, entry) {
+  row.pick = entry;
+  if (entry.item.composto) {
+    row.g = recipeInfo(entry.item).pesoTot;
+    row.inc = 0;
+    row.nota = entry.item.nota || '';
+  } else {
+    const res = resolveGrams(entry, row.qty);
+    row.g = r0(res.g);
+    row.inc = res.inc;
+    row.nota = res.nota;
+    if (res.dubbio) row.stato = 'amb-qty';
+  }
+  row.ings = entry.kind === 'recipe' ? expandDish(entry.item, row.g, row.inc) : null;
+  row.base = row.ings ? structuredClone(row.ings) : null;
+}
+
 function parseInput(text) {
   const rows = [];
   for (const seg of segments(text)) {
     const { qty, query } = extractQty(seg);
-    const cands = findCandidates(query);
-    const best = cands[0];
+    let cands = findCandidates(query);
+    let best = cands[0];
     const row = { src: seg, query, qty, cands: cands.slice(0, 5), pick: null, g: null, nota: '', stato: 'ok' };
+    // Nessun nome preciso? Prova "alimento + metodo di cottura".
+    if (!best || best.score < 0.9) {
+      const dm = detectMethod(query);
+      if (dm) {
+        const fc = findCandidates(dm.rest).filter((c) => c.kind === 'food');
+        const f = fc[0], f2 = fc[1];
+        if (f && (f.exact ? !f2?.exact : f.score >= 0.8 && (!f2 || f.score - f2.score >= 0.08))) {
+          setRowPick(row, { kind: 'recipe', item: composeDish(f.item, dm.m, qty, dm.parola), score: 1 });
+          rows.push(row);
+          continue;
+        }
+      }
+    }
     if (!best || best.score < 0.5) {
       row.stato = 'miss';
       row.cands = cands.filter((c) => c.score >= 0.35).slice(0, 4);
@@ -578,19 +667,11 @@ function parseInput(text) {
       const confident = best.exact
         ? !second || !second.exact
         : (best.score >= 0.8 && (!second || best.score - second.score >= 0.08)) || (best.score >= 0.7 && (!second || second.score < best.score - 0.3));
-      if (confident) {
-        row.pick = best;
-      } else {
+      if (confident) setRowPick(row, best);
+      else {
         row.stato = 'amb';
         row.cands = cands.filter((c) => c.score >= best.score - 0.25).slice(0, 4);
       }
-    }
-    if (row.pick) {
-      const res = resolveGrams(row.pick, qty);
-      row.g = r0(res.g);
-      row.inc = res.inc;
-      row.nota = res.nota;
-      if (res.dubbio) row.stato = 'amb-qty';
     }
     rows.push(row);
   }
@@ -599,19 +680,18 @@ function parseInput(text) {
 
 function rowToVoci(row) {
   const e = row.pick;
-  if (!e || !row.g) return [];
-  if (e.kind === 'recipe') {
-    const r = e.item;
-    const f = row.g / recipeInfo(r).pesoTot;
-    return r.ingredienti.map((ing) => {
-      const a = foodById(ing.fid);
-      if (!a) return null;
-      const v = makeVoce(a, ing.g * f);
-      v.from = r.nome;
-      if (row.inc) v.inc = row.inc;
+  if (!e) return [];
+  if (row.ings) {
+    const gid = uid('g');
+    return row.ings.filter((x) => x.g > 0).map((x) => {
+      const v = makeVoce(foodById(x.fid), x.g);
+      v.from = e.item.nome;
+      v.gid = gid;
+      if (x.inc) v.inc = x.inc;
       return v;
-    }).filter(Boolean);
+    });
   }
+  if (!row.g) return [];
   const v = makeVoce(e.item, row.g);
   if (row.inc) v.inc = row.inc;
   return [v];
@@ -1228,11 +1308,18 @@ function viewOggi() {
     if (!voci.length) {
       h += `<button class="item" data-act="add-to" data-pasto="${p.id}"><span class="nm muted">+ Aggiungi a ${p.nome.toLowerCase()}</span></button>`;
     } else {
+      let lastGid = null;
       for (const v of voci) {
+        if (v.gid && v.gid !== lastGid) {
+          const gv = voci.filter((x) => x.gid === v.gid);
+          const gr = kcalRange(gv);
+          h += `<button class="grp-head" data-act="edit-group" data-pasto="${p.id}" data-gid="${v.gid}"><span>${esc(v.from || 'Piatto')}</span><span class="num">${gr.unc ? fmtRange(gr) : fmt(sumN(gv.map(voceNutr)).kcal)} kcal</span></button>`;
+        }
+        lastGid = v.gid || null;
         const n = voceNutr(v);
         const vr = kcalRange([v]);
-        h += `<button class="item" data-act="edit-voce" data-pasto="${p.id}" data-id="${v.id}">
-          <span class="nm"><b>${esc(v.nome)}</b><small class="num">${v.from ? `${esc(v.from)} · ` : ''}${v.inc ? '~' : ''}${fmt(v.g)} g · P ${fmt(n.p)} · C ${fmt(n.cn, n.cn < 10 && n.cn % 1 ? 1 : 0)} · F ${fmt(n.f)}</small></span>
+        h += `<button class="item${v.gid ? ' in-grp' : ''}" data-act="edit-voce" data-pasto="${p.id}" data-id="${v.id}">
+          <span class="nm"><b>${esc(v.nome)}</b><small class="num">${v.from && !v.gid ? `${esc(v.from)} · ` : ''}${v.inc ? '~' : ''}${fmt(v.g)} g · P ${fmt(n.p)} · C ${fmt(n.cn, n.cn < 10 && n.cn % 1 ? 1 : 0)} · F ${fmt(n.f)}</small></span>
           <span class="kc num">${vr.unc ? fmtRange(vr) : fmt(n.kcal)}</span></button>`;
       }
       h += `<div class="meal-foot"><button class="linkbtn" data-act="add-to" data-pasto="${p.id}">+ Aggiungi</button><span class="spacer"></span><button class="linkbtn" data-act="save-preset" data-pasto="${p.id}">Salva come preset</button></div>`;
@@ -1371,8 +1458,8 @@ function handleFreeText(text) {
   if (!text.trim()) return;
   const rows = parseInput(text);
   if (!rows.length) return;
-  const allOk = rows.every((r) => r.stato === 'ok');
-  if (allOk) {
+  // Voci semplici e sicure: dentro subito. Piatti e ricette: si mostrano gli ingredienti da ritoccare.
+  if (rows.every((r) => r.stato === 'ok' && !r.ings)) {
     commitRows(rows);
     return;
   }
@@ -1386,7 +1473,7 @@ function commitRows(rows) {
   for (const row of rows) {
     const voci = rowToVoci(row);
     for (const v of voci) d.pasti[ui.pasto].push(v);
-    if (voci.length === 1) pushRecent(voci[0].fid, voci[0].g, voci[0].inc);
+    if (voci.length === 1 && !row.ings) pushRecent(voci[0].fid, voci[0].g, voci[0].inc);
     n += voci.length;
   }
   cleanupDay(ui.day);
@@ -1396,14 +1483,30 @@ function commitRows(rows) {
   if (n) toast(`${n} ${n === 1 ? 'voce aggiunta' : 'voci aggiunte'} a ${pastoNome(ui.pasto)}`, 'Annulla', undo);
 }
 
+const rowReady = (r) => r.pick && (r.ings ? r.ings.some((x) => x.g > 0) : r.g > 0);
+
 function openConfirmSheet(rows) {
+  const dishHtml = (r, i) => {
+    const t = sumN(r.ings.filter((x) => x.g > 0).map((x) => nutr(foodById(x.fid), x.g)));
+    const kr = kcalRange(r.ings.filter((x) => x.g > 0).map((x) => ({ per: perOf(foodById(x.fid)), g: x.g, inc: x.inc })));
+    const mult = r.base ? r.ings.reduce((a, x) => a + x.g, 0) / Math.max(1, r.base.reduce((a, x) => a + x.g, 0)) : 1;
+    return `<div class="row"><div style="flex:1;min-width:0"><b>${esc(r.pick.item.nome)}</b> <span class="badge">${r.pick.item.piatto ? 'piatto' : 'ricetta'}</span>
+        <div class="small muted num">${kr.unc ? fmtRange(kr) : fmt(t.kcal)} kcal · P ${fmt(t.p)} g · C ${fmt(t.cn)} g${r.nota ? ` · ${esc(r.nota)}` : ''}</div></div></div>
+      <div class="chips" style="margin-top:8px">${[0.5, 1, 1.5, 2].map((x) => `<button class="chip sm" data-rp="${i}:${x}" aria-pressed="${Math.abs(mult - x) < 0.01}">${fmt(x, x % 1 ? 1 : 0)} porz.</button>`).join('')}</div>
+      <div class="ings">${r.ings.map((x, j) => {
+        const a = foodById(x.fid);
+        return `<div class="row ing"><span class="nm">${esc(a.nome)}${x.inc ? '<small class="muted">stimato</small>' : ''}</span><input class="inp g num" data-ig="${i}:${j}" inputmode="decimal" value="${x.g}" aria-label="grammi di ${esc(a.nome)}"><span class="small muted">g</span><button class="iconbtn" data-ix="${i}:${j}" aria-label="Togli ${esc(a.nome)}">✕</button></div>`;
+      }).join('')}</div>
+      <button class="linkbtn small" data-iadd="${i}">+ Aggiungi ingrediente</button>`;
+  };
   const draw = () => rows.map((r, i) => {
     const cls = r.stato === 'miss' && !r.pick ? 'miss' : r.stato !== 'ok' ? 'amb' : '';
     let body = '';
-    if (r.pick) {
-      const per = r.pick.kind === 'recipe' ? recipeInfo(r.pick.item).per : perOf(r.pick.item);
-      const n = nutrPer(per, r.g || 0);
-      body += `<div class="row"><div style="flex:1;min-width:0"><b>${esc(r.pick.item.nome)}</b>${r.pick.kind === 'recipe' ? ' <span class="badge">ricetta</span>' : ''}
+    if (r.pick && r.ings) {
+      body += dishHtml(r, i);
+    } else if (r.pick) {
+      const n = nutrPer(perOf(r.pick.item), r.g || 0);
+      body += `<div class="row"><div style="flex:1;min-width:0"><b>${esc(r.pick.item.nome)}</b>
         <div class="small muted num">${fmt(n.kcal)} kcal · P ${fmt(n.p)} g${r.nota ? ` · ${esc(r.nota)}` : ''}</div></div>
         <input class="inp g num" data-g="${i}" inputmode="decimal" value="${r.g ?? ''}" aria-label="grammi"><span class="small muted">g</span></div>`;
     } else {
@@ -1411,42 +1514,69 @@ function openConfirmSheet(rows) {
     }
     if (r.stato === 'amb-qty') body += `<div class="small" style="color:var(--warn);margin-top:6px">Quantità interpretata come porzioni: controlla i grammi.</div>`;
     if ((r.stato === 'amb' || r.stato === 'miss') && r.cands.length) {
-      body += `<div class="chips">${r.cands.map((c, j) => `<button class="chip" data-row="${i}" data-cand="${j}" aria-pressed="${r.pick && r.pick.item.id === c.item.id}">${esc(c.item.nome)}</button>`).join('')}</div>`;
+      body += `<div class="chips" style="margin-top:8px">${r.cands.map((c, j) => `<button class="chip" data-row="${i}" data-cand="${j}" aria-pressed="${r.pick && r.pick.item.id === c.item.id}">${esc(c.item.nome)}</button>`).join('')}</div>`;
     }
     body += `<div class="row" style="margin-top:6px"><button class="linkbtn small" data-search="${i}">Cerca…</button>${r.stato === 'miss' ? `<button class="linkbtn small" data-create="${i}">Crea alimento</button>` : ''}<span class="spacer"></span><button class="linkbtn small" data-drop="${i}" style="color:var(--muted)">Ignora</button></div>`;
     return `<div class="parse-row ${cls}"><div class="src">«${esc(r.src)}»</div>${body}</div>`;
   }).join('');
 
-  openSheet(`<h2>Controlla</h2><p class="small muted">${rows.filter((r) => r.stato !== 'ok').length} da sistemare, ${rows.filter((r) => r.stato === 'ok').length} già pronte.</p>
+  const daSistemare = rows.filter((r) => r.stato !== 'ok').length;
+  const piatti = rows.filter((r) => r.ings).length;
+  openSheet(`<h2>Controlla</h2><p class="small muted">${daSistemare ? `${daSistemare} da sistemare. ` : ''}${piatti ? `${piatti} ${piatti === 1 ? 'piatto scomposto' : 'piatti scomposti'} in ingredienti: ritocca i grammi se serve.` : ''}${!daSistemare && !piatti ? `${rows.length} pronte.` : ''}</p>
     <div id="rows"></div>
     <div class="sheet-actions"><button class="btn" data-close>Annulla</button><button class="btn primary" id="rowsOk">Aggiungi</button></div>`, (el) => {
     const box = $('#rows', el);
+    const setReady = () => {
+      const ready = rows.length && rows.every(rowReady);
+      $('#rowsOk', el).disabled = !ready;
+      $('#rowsOk', el).textContent = ready ? 'Aggiungi' : 'Scegli le voci evidenziate';
+    };
     const refresh = () => {
       box.innerHTML = draw();
-      const ready = rows.length && rows.every((r) => r.pick && r.g > 0);
-      $('#rowsOk', el).disabled = !ready;
-      $('#rowsOk', el).textContent = ready ? `Aggiungi ${rows.length}` : 'Scegli le voci evidenziate';
+      setReady();
     };
     refresh();
     box.addEventListener('input', (e) => {
-      const i = e.target.dataset.g;
-      if (i == null) return;
-      rows[i].g = num(e.target.value);
-      rows[i].inc = 0; // grammi scritti a mano = pesati
-      const ready = rows.every((r) => r.pick && r.g > 0);
-      $('#rowsOk', el).disabled = !ready;
+      const d = e.target.dataset;
+      if (d.g != null) {
+        rows[d.g].g = num(e.target.value);
+        rows[d.g].inc = 0; // grammi scritti a mano = pesati
+      } else if (d.ig != null) {
+        const [i, j] = d.ig.split(':').map(Number);
+        rows[i].ings[j].g = num(e.target.value) || 0;
+        rows[i].ings[j].inc = 0;
+      } else return;
+      setReady();
     });
-    box.addEventListener('change', () => refresh());
+    box.addEventListener('change', (e) => { if (e.target.dataset.ig != null) refresh(); });
     box.addEventListener('click', (e) => {
+      const rp = e.target.closest('[data-rp]');
+      if (rp) {
+        const [i, x] = rp.dataset.rp.split(':').map(Number);
+        rows[i].ings = rows[i].base.map((b) => ({ ...b, g: r0(b.g * x) }));
+        return refresh();
+      }
+      const ix = e.target.closest('[data-ix]');
+      if (ix) {
+        const [i, j] = ix.dataset.ix.split(':').map(Number);
+        rows[i].ings.splice(j, 1);
+        rows[i].base?.splice(j, 1);
+        return refresh();
+      }
+      const ia = e.target.closest('[data-iadd]');
+      if (ia) {
+        const r = rows[ia.dataset.iadd];
+        return pickFood('', (entry) => {
+          const ing = { fid: entry.item.id, g: entry.item.porz, inc: INC.porzione };
+          r.ings.push(ing);
+          r.base?.push({ ...ing });
+          openConfirmSheet(rows);
+        }, () => openConfirmSheet(rows), true);
+      }
       const c = e.target.closest('[data-cand]');
       if (c) {
         const r = rows[c.dataset.row];
-        r.pick = r.cands[c.dataset.cand];
-        const res = resolveGrams(r.pick, r.qty);
-        r.g = r0(res.g);
-        r.inc = res.inc;
-        r.nota = res.nota;
-        r.stato = res.dubbio ? 'amb-qty' : r.stato;
+        setRowPick(r, r.cands[c.dataset.cand]);
         return refresh();
       }
       const d = e.target.closest('[data-drop]');
@@ -1459,14 +1589,9 @@ function openConfirmSheet(rows) {
       if (s) {
         const r = rows[s.dataset.search];
         return pickFood(r.query, (entry) => {
-          r.pick = entry;
           r.cands = [entry, ...r.cands.filter((x) => x.item.id !== entry.item.id)].slice(0, 4);
-          const res = resolveGrams(entry, r.qty);
-          r.g = r0(res.g);
-          r.inc = res.inc;
-        r.inc = res.inc;
-          r.nota = res.nota;
           r.stato = 'amb';
+          setRowPick(r, entry);
           openConfirmSheet(rows);
         }, () => openConfirmSheet(rows));
       }
@@ -1475,13 +1600,9 @@ function openConfirmSheet(rows) {
         const r = rows[cr.dataset.create];
         return openFoodEditor(null, { nome: cap(r.query) }, (food) => {
           const entry = { kind: 'food', item: food, score: 1 };
-          r.pick = entry;
           r.cands = [entry];
-          const res = resolveGrams(entry, r.qty);
-          r.g = r0(res.g);
-          r.inc = res.inc;
-        r.inc = res.inc;
           r.stato = 'amb';
+          setRowPick(r, entry);
           openConfirmSheet(rows);
         }, () => openConfirmSheet(rows));
       }
@@ -1701,6 +1822,7 @@ function openRecipeSheet(r, pasto, back, variant) {
     $('#rBack', el).addEventListener('click', () => (back ? back() : closeSheet()));
     $('#rAdd', el).addEventListener('click', () => {
       const g = grams();
+      const gid = uid('g');
       const undo = snapshotDay(ui.day);
       const d = getDay(ui.day, true);
       let n = 0;
@@ -1709,6 +1831,7 @@ function openRecipeSheet(r, pasto, back, variant) {
         if (!a || !(g[i] > 0)) return;
         const v = makeVoce(a, g[i]);
         v.from = r.nome;
+        v.gid = gid;
         d.pasti[ui.pasto].push(v);
         n++;
       });
@@ -1801,6 +1924,40 @@ function stasereCard(x, i, t0, rem) {
     ${notes.length ? `<div class="small">${notes.join('<br>')}</div>` : ''}
     <div class="why num">Chiuderesti a ${fmt(end.kcal)} kcal e ${fmt(end.p)} g di proteine${overC ? ` · <span class="txt-bad">carbo oltre il tetto di ${fmt(end.cn - st.carboMax)} g</span>` : ''}</div>
   </button>`;
+}
+
+// Tap sul nome di un piatto nel diario: cambia le porzioni di tutto il piatto o eliminalo.
+function openGroupSheet(pasto, gid) {
+  const d = getDay(ui.day);
+  const voci = (d?.pasti[pasto] || []).filter((v) => v.gid === gid);
+  if (!voci.length) return;
+  const t = sumN(voci.map(voceNutr));
+  openSheet(`<h2>${esc(voci[0].from || 'Piatto')}</h2>
+    <p class="small muted num">${voci.length} ingredienti · ${fmt(t.kcal)} kcal · P ${fmt(t.p)} g · C ${fmt(t.cn)} g · F ${fmt(t.f)} g</p>
+    <p class="small">${voci.map((v) => `${esc(v.nome)} ${v.inc ? '~' : ''}${fmt(v.g)} g`).join(' · ')}</p>
+    <span class="small muted">Scala tutto il piatto</span>
+    <div class="chips" style="margin:6px 0 12px">${[0.5, 0.75, 1.25, 1.5, 2].map((x) => `<button class="chip sm" data-scale="${x}">× ${fmt(x, 2)}</button>`).join('')}</div>
+    <p class="small muted">Per un solo ingrediente tocca la sua riga nel diario.</p>
+    <div class="sheet-actions"><button class="btn danger" id="gdel">Elimina piatto</button><button class="btn" data-close>Chiudi</button></div>`, (el) => {
+    $$('[data-scale]', el).forEach((b) => b.addEventListener('click', () => {
+      const undo = snapshotDay(ui.day);
+      const x = num(b.dataset.scale);
+      for (const v of voci) v.g = r0(v.g * x);
+      save();
+      closeSheet();
+      render();
+      toast(`${voci[0].from}: × ${fmt(x, 2)}`, 'Annulla', undo);
+    }));
+    $('#gdel', el).addEventListener('click', () => {
+      const undo = snapshotDay(ui.day);
+      d.pasti[pasto] = d.pasti[pasto].filter((v) => v.gid !== gid);
+      cleanupDay(ui.day);
+      save();
+      closeSheet();
+      render();
+      toast(`${voci[0].from} eliminato`, 'Annulla', undo);
+    });
+  });
 }
 
 function openStasera() {
@@ -2242,6 +2399,7 @@ function bindView(main) {
       case 'stasera': return openStasera();
       case 'add-to': return openAddSheet(t.dataset.pasto);
       case 'edit-voce': return openVoceEditor(t.dataset.pasto, t.dataset.id);
+      case 'edit-group': return openGroupSheet(t.dataset.pasto, t.dataset.gid);
       case 'save-preset': return savePreset(t.dataset.pasto);
       case 'export-day': return copyText(exportDay(ui.day));
       case 'export-week': return copyText(exportWeek(ui.weekEnd));

@@ -290,3 +290,97 @@ const RICETTE_BASE = [
     [['piadina', 100], ['crudo', 50], ['stracchino', 50], ['misticanza', 20]],
     ['Scalda la piadina in padella 1 minuto per lato.', 'Farcisci con stracchino, crudo e rucola.']),
 ];
+
+// Piatti comuni: composizione standard di UNA porzione, per riconoscerli quando li scrivi
+// ("uova al purgatorio", "amatriciana"). Non sono ricette: niente procedimento, non compaiono
+// nei suggerimenti. Scritti nel diario si scompongono negli ingredienti, modificabili.
+const _P = (id, nome, alias, ingredienti) => ({ id, nome, alias, porzioni: 1, piatto: true, ingredienti: ingredienti.map(([fid, g]) => ({ fid, g })) });
+
+const PIATTI_BASE = [
+  // — Uova
+  _P('p-uova-purgatorio', 'Uova al purgatorio', ['uova in purgatorio'], [['uova', 110], ['passata', 150], ['olio-evo', 10]]),
+  _P('p-uova-occhio', "Uova all'occhio di bue", ['uova al tegamino', 'uovo al tegamino', 'uova occhio di bue', 'uovo all occhio di bue'], [['uova', 110], ['olio-evo', 5]]),
+  _P('p-uova-strapazzate', 'Uova strapazzate', ['uovo strapazzato', 'strapazzate'], [['uova', 165], ['burro', 5]]),
+  _P('p-omelette', 'Omelette', ['omelette semplice', 'omelet'], [['uova', 165], ['olio-evo', 5]]),
+  _P('p-frittata', 'Frittata', ['frittata semplice', 'frittata al formaggio'], [['uova', 165], ['parmigiano', 10], ['olio-evo', 5]]),
+  _P('p-uova-bacon', 'Uova e bacon', ['uova e pancetta', 'bacon e uova'], [['uova', 110], ['pancetta', 30]]),
+
+  // — Pasta, riso, gnocchi
+  _P('p-aglio-olio', 'Spaghetti aglio olio e peperoncino', ['aglio olio e peperoncino', 'pasta aglio e olio', 'spaghetti aglio e olio', 'aglio e olio'], [['pasta', 90], ['olio-evo', 15]]),
+  _P('p-pasta-pomodoro', 'Pasta al pomodoro', ['pasta al sugo', 'spaghetti al pomodoro', 'pasta pomodoro', 'penne al pomodoro'], [['pasta', 90], ['passata', 150], ['parmigiano', 10], ['olio-evo', 10]]),
+  _P('p-pasta-bianco', 'Pasta in bianco', ['pasta olio e parmigiano', 'pasta in bianco con parmigiano'], [['pasta', 90], ['olio-evo', 10], ['parmigiano', 10]]),
+  _P('p-pasta-burro', 'Pasta al burro', ['pasta burro e parmigiano'], [['pasta', 90], ['burro', 15], ['parmigiano', 10]]),
+  _P('p-amatriciana', "Pasta all'amatriciana", ['amatriciana', 'bucatini all amatriciana', 'spaghetti all amatriciana'], [['pasta', 90], ['guanciale', 40], ['passata', 120], ['pecorino', 15]]),
+  _P('p-gricia', 'Pasta alla gricia', ['gricia'], [['pasta', 90], ['guanciale', 40], ['pecorino', 20]]),
+  _P('p-cacio-pepe', 'Cacio e pepe', ['pasta cacio e pepe', 'spaghetti cacio e pepe', 'tonnarelli cacio e pepe'], [['pasta', 90], ['pecorino', 35]]),
+  _P('p-pasta-pesto', 'Pasta al pesto', ['trofie al pesto', 'pasta col pesto', 'pasta pesto'], [['pasta', 90], ['pesto', 40], ['parmigiano', 5]]),
+  _P('p-ragu', 'Pasta al ragù', ['pasta alla bolognese', 'ragu', 'bolognese', 'tagliatelle al ragu', 'spaghetti alla bolognese', 'pasta al sugo di carne'], [['pasta', 90], ['macinato-manzo', 70], ['passata', 100], ['carote', 15], ['sedano', 10], ['cipolla', 10], ['olio-evo', 5]]),
+  _P('p-norma', 'Pasta alla norma', ['norma', 'pasta con le melanzane'], [['pasta', 90], ['melanzane', 150], ['passata', 100], ['ricotta', 20], ['olio-evo', 15]]),
+  _P('p-pasta-zucchine', 'Pasta e zucchine', ['pasta alle zucchine', 'pasta zucchine', 'pasta con le zucchine'], [['pasta', 90], ['zucchine', 200], ['olio-evo', 10], ['parmigiano', 10]]),
+  _P('p-pasta-broccoli', 'Pasta e broccoli', ['pasta con i broccoli', 'pasta ai broccoli'], [['pasta', 90], ['broccoli', 200], ['olio-evo', 10], ['parmigiano', 10]]),
+  _P('p-pasta-piselli', 'Pasta e piselli', ['pasta con i piselli'], [['pasta', 90], ['piselli', 100], ['pancetta', 20], ['olio-evo', 10]]),
+  _P('p-pasta-patate', 'Pasta e patate', ['pasta con le patate'], [['pasta', 80], ['patate', 150], ['olio-evo', 10], ['parmigiano', 10]]),
+  _P('p-scoglio', 'Pasta allo scoglio', ['spaghetti allo scoglio', 'pasta ai frutti di mare', 'spaghetti ai frutti di mare'], [['pasta', 90], ['cozze', 80], ['vongole', 60], ['gamberi', 60], ['calamari', 60], ['passata', 80], ['olio-evo', 10]]),
+  _P('p-pasta-salmone', 'Pasta al salmone', ['pasta panna e salmone', 'pasta salmone'], [['pasta', 90], ['salmone-affumicato', 50], ['panna', 30]]),
+  _P('p-pasta-panna-prosciutto', 'Pasta panna e prosciutto', ['pasta prosciutto e panna'], [['pasta', 90], ['cotto', 50], ['panna', 40]]),
+  _P('p-arrabbiata', "Penne all'arrabbiata", ['arrabbiata', 'pasta all arrabbiata'], [['pasta', 90], ['passata', 150], ['olio-evo', 10]]),
+  _P('p-puttanesca', 'Pasta alla puttanesca', ['puttanesca', 'spaghetti alla puttanesca'], [['pasta', 90], ['passata', 150], ['olive', 20], ['acciughe-olio', 5], ['olio-evo', 10]]),
+  _P('p-pasta-cozze', 'Pasta con le cozze', ['spaghetti con le cozze', 'pasta e cozze'], [['pasta', 90], ['cozze', 150], ['olio-evo', 10]]),
+  _P('p-gnocchi-sugo', 'Gnocchi al pomodoro', ['gnocchi al sugo', 'gnocchi alla sorrentina'], [['gnocchi', 250], ['passata', 120], ['parmigiano', 10], ['olio-evo', 5]]),
+  _P('p-gnocchi-pesto', 'Gnocchi al pesto', [], [['gnocchi', 250], ['pesto', 30]]),
+  _P('p-tortellini-brodo', 'Tortellini in brodo', ['cappelletti in brodo'], [['pasta-fresca', 100], ['brodo', 300], ['parmigiano', 10]]),
+  _P('p-tortellini-panna', 'Tortellini panna e prosciutto', ['tortellini alla panna'], [['pasta-fresca', 125], ['panna', 40], ['cotto', 30]]),
+  _P('p-ravioli-burro', 'Ravioli burro e salvia', ['ravioli al burro'], [['pasta-fresca', 150], ['burro', 15], ['parmigiano', 10]]),
+  _P('p-risotto-milanese', 'Risotto alla milanese', ['risotto allo zafferano', 'risotto giallo'], [['riso', 80], ['burro', 15], ['parmigiano', 15], ['brodo', 250], ['cipolla', 10]]),
+  _P('p-riso-bianco', 'Riso in bianco', ['riso olio e parmigiano', 'riso bollito'], [['riso', 80], ['olio-evo', 10], ['parmigiano', 10]]),
+  _P('p-insalata-riso', 'Insalata di riso', ['riso freddo'], [['riso', 80], ['tonno-naturale', 40], ['wurstel', 30], ['emmental', 20], ['olive', 10], ['olio-evo', 10]]),
+
+  // — Carne
+  _P('p-pollo-cacciatora', 'Pollo alla cacciatora', ['pollo in umido'], [['cosce-pollo', 250], ['passata', 120], ['olive', 15], ['cipolla', 30], ['olio-evo', 10]]),
+  _P('p-pollo-patate', 'Pollo e patate al forno', ['pollo e patate', 'pollo con patate'], [['cosce-pollo', 250], ['patate', 200], ['olio-evo', 15]]),
+  _P('p-spezzatino', 'Spezzatino con patate', ['spezzatino', 'spezzatino di manzo'], [['manzo', 200], ['patate', 150], ['passata', 50], ['carote', 50], ['cipolla', 30], ['olio-evo', 10]]),
+  _P('p-arrosto-vitello', 'Arrosto di vitello', ['arrosto di vitello al forno'], [['vitello', 180], ['olio-evo', 10]]),
+  _P('p-saltimbocca', 'Saltimbocca alla romana', ['saltimbocca'], [['vitello', 150], ['crudo', 30], ['burro', 10], ['farina', 5]]),
+  _P('p-involtini', 'Involtini di carne', ['involtini', 'involtini prosciutto e formaggio'], [['vitello', 150], ['cotto', 30], ['asiago', 20], ['olio-evo', 10]]),
+  _P('p-vitello-tonnato', 'Vitello tonnato', [], [['vitello', 150], ['maionese', 30], ['tonno-olio', 30]]),
+  _P('p-fegato-veneziana', 'Fegato alla veneziana', [], [['fegato', 180], ['cipolla', 150], ['olio-evo', 15], ['burro', 5]]),
+  _P('p-salsiccia-friarielli', 'Salsiccia e friarielli', ['salsiccia e broccoli', 'salsiccia e cime di rapa', 'salsicce e friarielli'], [['salsiccia', 150], ['broccoli', 200], ['olio-evo', 10]]),
+  _P('p-salsiccia-patate', 'Salsiccia e patate', ['salsicce e patate'], [['salsiccia', 150], ['patate', 200], ['olio-evo', 10]]),
+  _P('p-hamburger-panino', 'Hamburger nel panino', ['panino con hamburger', 'cheeseburger', 'panino hamburger'], [['pane', 80], ['macinato-manzo', 150], ['provolone', 20], ['pomodori', 30], ['misticanza', 10], ['ketchup', 15]]),
+  _P('p-carpaccio', 'Carpaccio di manzo', ['carpaccio', 'carpaccio rucola e grana'], [['manzo', 120], ['parmigiano', 15], ['misticanza', 30], ['olio-evo', 10]]),
+  _P('p-coniglio-cacciatora', 'Coniglio alla cacciatora', ['coniglio in umido'], [['coniglio', 250], ['passata', 100], ['olive', 15], ['olio-evo', 10]]),
+
+  // — Pesce
+  _P('p-fritto-misto', 'Fritto misto di pesce', ['frittura di pesce', 'fritto misto', 'frittura mista'], [['calamari', 150], ['gamberi', 100], ['farina', 20], ['olio-semi', 25]]),
+  _P('p-zuppa-pesce', 'Zuppa di pesce', ['cacciucco', 'brodetto di pesce'], [['cozze', 100], ['vongole', 80], ['calamari', 100], ['gamberi', 80], ['merluzzo', 100], ['passata', 150], ['olio-evo', 15], ['pane', 40]]),
+  _P('p-sogliola-mugnaia', 'Sogliola alla mugnaia', [], [['sogliola', 200], ['farina', 10], ['burro', 15]]),
+  _P('p-insalata-mare', 'Insalata di mare', ['antipasto di mare'], [['polpo', 100], ['calamari', 80], ['gamberi', 80], ['cozze', 60], ['sedano', 20], ['olio-evo', 15]]),
+
+  // — Verdure, contorni, piatti unici
+  _P('p-caponata', 'Caponata', ['caponata di melanzane'], [['melanzane', 200], ['sedano', 30], ['cipolla', 30], ['olive', 15], ['passata', 60], ['zucchero', 5], ['aceto-balsamico', 10], ['olio-evo', 20]]),
+  _P('p-peperonata', 'Peperonata', [], [['peperoni', 250], ['cipolla', 50], ['passata', 60], ['olio-evo', 15]]),
+  _P('p-melanzane-funghetto', 'Melanzane a funghetto', [], [['melanzane', 250], ['passata', 50], ['olio-evo', 20]]),
+  _P('p-insalata-mista', 'Insalata mista', ['insalata mista con carote', 'contorno di insalata'], [['misticanza', 100], ['pomodori', 100], ['carote', 50], ['olio-evo', 10]]),
+  _P('p-insalatona', 'Insalatona', ['insalatona tonno e mozzarella', 'insalata completa'], [['misticanza', 100], ['pomodori', 100], ['mozzarella', 125], ['tonno-naturale', 56], ['olive', 15], ['olio-evo', 10]]),
+  _P('p-pure', 'Purè di patate', ['pure', 'pure di patate', 'purea di patate'], [['patate', 200], ['latte', 50], ['burro', 10], ['parmigiano', 5]]),
+  _P('p-spinaci-burro', 'Spinaci al burro', [], [['spinaci', 250], ['burro', 10]]),
+  _P('p-fagiolini-patate', 'Fagiolini e patate', ['patate e fagiolini'], [['fagiolini', 150], ['patate', 150], ['olio-evo', 10]]),
+  _P('p-zuppa-legumi', 'Zuppa di legumi', ['zuppa di legumi misti', 'zuppa di fagioli'], [['fagioli', 100], ['ceci', 100], ['lenticchie', 100], ['passata', 50], ['olio-evo', 10]]),
+
+  // — Colazione, panini, spuntini
+  _P('p-latte-cereali', 'Latte e cereali', ['latte con cereali', 'tazza di latte e cereali'], [['latte', 200], ['cornflakes', 40]]),
+  _P('p-caffelatte', 'Caffellatte', ['caffe latte', 'caffelatte', 'latte macchiato'], [['latte', 200], ['caffe', 30], ['zucchero', 5]]),
+  _P('p-cappuccino-cornetto', 'Cappuccino e cornetto', ['cappuccino e brioche', 'colazione al bar', 'cappuccio e cornetto'], [['cappuccino', 150], ['cornetto', 60]]),
+  _P('p-fette-marmellata', 'Fette biscottate e marmellata', ['fette con marmellata', 'fette biscottate con marmellata'], [['fette-biscottate', 30], ['marmellata', 20]]),
+  _P('p-pane-nutella', 'Pane e nutella', ['pane con nutella'], [['pane', 50], ['nutella', 20]]),
+  _P('p-yogurt-frutta', 'Yogurt e frutta', ['yogurt con frutta', 'yogurt e banana'], [['yogurt-intero', 125], ['banana', 60]]),
+  _P('p-porridge', 'Porridge', ['porridge di avena', 'porridge con banana'], [['avena', 40], ['latte', 200], ['banana', 50], ['miele', 5]]),
+  _P('p-toast', 'Toast prosciutto e formaggio', ['toast', 'toast cotto e formaggio'], [['pane', 60], ['cotto', 40], ['emmental', 30]]),
+  _P('p-avocado-toast', 'Avocado toast con uovo', ['avocado toast', 'toast avocado', 'toast con avocado'], [['pane-integrale', 60], ['avocado', 70], ['uova', 55]]),
+  _P('p-macedonia', 'Macedonia', ['macedonia di frutta'], [['mela', 100], ['banana', 60], ['arancia', 80], ['kiwi', 50]]),
+  _P('p-panino-crudo-mozzarella', 'Panino crudo e mozzarella', ['panino con prosciutto e mozzarella', 'panino prosciutto e mozzarella'], [['pane', 100], ['crudo', 50], ['mozzarella', 60]]),
+  _P('p-panino-mortadella', 'Panino con la mortadella', ['panino mortadella'], [['pane', 100], ['mortadella', 60]]),
+  _P('p-tramezzino', 'Tramezzino tonno e pomodoro', ['tramezzino', 'tramezzino al tonno'], [['pane', 50], ['tonno-naturale', 40], ['maionese', 15], ['pomodori', 20]]),
+  _P('p-bruschetta', 'Bruschetta al pomodoro', ['bruschette', 'bruschetta'], [['pane', 60], ['pomodori', 100], ['olio-evo', 10]]),
+  _P('p-focaccia-farcita', 'Focaccia farcita', ['focaccia con prosciutto', 'focaccia prosciutto e formaggio'], [['focaccia', 120], ['cotto', 40], ['stracchino', 40]]),
+];

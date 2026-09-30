@@ -66,7 +66,7 @@ const ALIMENTI_BASE = [
   { id: 'spinaci', nome: 'Spinaci', alias: ['spinaci', 'spinacio'], kcal: 23, p: 2.9, cn: 1.4, f: 2.2, na: 79, porz: 200, tag: ['verdura'] },
   { id: 'broccoli', nome: 'Broccoli', alias: ['broccoli', 'broccolo', 'cime di rapa'], kcal: 34, p: 2.8, cn: 4.4, f: 2.6, na: 33, porz: 200, tag: ['verdura'] },
   { id: 'cavolfiore', nome: 'Cavolfiore', alias: ['cavolfiore', 'cavolfiori'], kcal: 25, p: 1.9, cn: 3, f: 2, na: 30, porz: 200, tag: ['verdura'] },
-  { id: 'misticanza', nome: 'Misticanza', alias: ['misticanza', 'insalata', 'insalata mista', 'lattuga', 'rucola', 'valeriana', 'songino'], kcal: 17, p: 1.4, cn: 1.2, f: 1.8, na: 28, porz: 80, tag: ['verdura'] },
+  { id: 'misticanza', nome: 'Misticanza', alias: ['misticanza', 'insalata', 'lattuga', 'rucola', 'valeriana', 'songino'], kcal: 17, p: 1.4, cn: 1.2, f: 1.8, na: 28, porz: 80, tag: ['verdura'] },
   { id: 'finocchio', nome: 'Finocchio', alias: ['finocchio', 'finocchi'], kcal: 31, p: 1.2, cn: 4.2, f: 3.1, na: 52, porz: 200, tag: ['verdura'], unita: { pezzo: 250 } },
   { id: 'pomodori', nome: 'Pomodori', alias: ['pomodori', 'pomodoro', 'pomodorini', 'ciliegini'], kcal: 19, p: 1, cn: 2.7, f: 1.2, na: 5, porz: 150, tag: ['verdura'], unita: { pezzo: 120 } },
   { id: 'peperoni', nome: 'Peperoni', alias: ['peperoni', 'peperone'], kcal: 26, p: 1, cn: 3.9, f: 2.1, na: 4, porz: 200, tag: ['verdura'], unita: { pezzo: 200 } },
@@ -99,7 +99,7 @@ const ALIMENTI_BASE = [
 const _A = (id, nome, alias, kcal, p, cn, f, na, porz, tag = [], unita) => ({ id, nome, alias, kcal, p, cn, f, na, porz, tag, ...(unita ? { unita } : {}) });
 ALIMENTI_BASE.push(
   // Carne bianca
-  _A('cosce-pollo', 'Cosce di pollo (senza pelle)', ['cosce di pollo', 'coscia di pollo', 'sovracosce', 'fusi di pollo'], 121, 19.7, 0, 0, 95, 200, ['carne-bianca'], { pezzo: 120 }),
+  _A('cosce-pollo', 'Cosce di pollo (senza pelle)', ['cosce di pollo', 'coscia di pollo', 'sovracosce', 'sovracoscia', 'sovraccoscio', 'sovraccosce', 'sovraccoscia', 'sovraccoscio di pollo', 'sovracoscia di pollo', 'sovracosce di pollo', 'sovraccosce di pollo', 'fusi di pollo', 'fuso di pollo', 'coscia', 'cosce'], 121, 19.7, 0, 0, 95, 200, ['carne-bianca'], { pezzo: 120 }),
   _A('ali-pollo', 'Ali di pollo', ['ali di pollo', 'alette', 'alette di pollo'], 203, 18.3, 0, 0, 73, 200, ['carne-bianca'], { pezzo: 35 }),
   _A('macinato-tacchino', 'Macinato di tacchino', ['macinato di tacchino', 'macinato di pollo', 'macinato bianco'], 148, 19.7, 0, 0, 70, 150, ['carne-bianca']),
   _A('coniglio', 'Coniglio', ['coniglio'], 114, 21.2, 0, 0, 49, 200, ['carne-bianca']),
@@ -112,7 +112,7 @@ ALIMENTI_BASE.push(
   _A('vitello', 'Vitello (fesa)', ['vitello', 'fettina di vitello', 'scaloppine', 'fesa di vitello'], 109, 21, 0, 0, 80, 150, ['carne-rossa'], { fetta: 100 }),
   _A('agnello', 'Agnello', ['agnello', 'costolette di agnello', 'abbacchio'], 159, 20, 0, 0, 70, 200, ['carne-rossa']),
   _A('cavallo', 'Carne di cavallo', ['cavallo', 'carne di cavallo', 'pesto di cavallo'], 133, 21.4, 0, 0, 53, 150, ['carne-rossa']),
-  _A('fegato', 'Fegato di vitello', ['fegato', 'fegato di vitello', 'fegato alla veneziana'], 135, 20, 4, 0, 70, 150, ['carne-rossa']),
+  _A('fegato', 'Fegato di vitello', ['fegato', 'fegato di vitello'], 135, 20, 4, 0, 70, 150, ['carne-rossa']),
   _A('roast-beef', 'Roast beef', ['roast beef', 'roastbeef', 'rosbif'], 150, 26, 0.5, 0, 500, 80, ['carne-rossa', 'processato'], { fetta: 15 }),
   _A('pancetta', 'Pancetta', ['pancetta', 'pancetta affumicata', 'cubetti di pancetta', 'bacon'], 400, 14, 0, 0, 1500, 30, ['carne-rossa', 'processato'], { fetta: 10 }),
   _A('guanciale', 'Guanciale', ['guanciale'], 650, 9, 0, 0, 1500, 30, ['carne-rossa', 'processato'], { fetta: 10 }),
@@ -208,7 +208,7 @@ ALIMENTI_BASE.push(
   _A('parmigiana', 'Parmigiana di melanzane', ['parmigiana', 'parmigiana di melanzane'], 150, 6.5, 6, 2.5, 350, 250, ['verdura', 'latticino']),
 
   // Patate e tuberi
-  _A('patate', 'Patate', ['patate', 'patata', 'patate lesse', 'patate al forno', 'pure'], 77, 2, 15.4, 2.1, 6, 200, [], { pezzo: 150 }),
+  _A('patate', 'Patate', ['patate', 'patata'], 77, 2, 15.4, 2.1, 6, 200, [], { pezzo: 150 }),
   _A('patate-dolci', 'Patate dolci', ['patate dolci', 'patata dolce', 'patata americana', 'batata'], 86, 1.6, 17.1, 3, 55, 200, [], { pezzo: 200 }),
   _A('patatine-fritte', 'Patatine fritte', ['patatine fritte', 'patate fritte', 'french fries'], 312, 3.4, 38, 3.8, 210, 150, ['processato']),
   _A('patatine-busta', 'Patatine in busta', ['patatine', 'patatine in busta', 'chips'], 527, 6.6, 49, 4, 500, 30, ['processato'], { confezione: 30 }),
@@ -236,7 +236,7 @@ ALIMENTI_BASE.push(
   _A('quinoa', 'Quinoa', ['quinoa'], 368, 14.1, 57.2, 7, 5, 80, ['cereale']),
   _A('couscous', 'Cous cous', ['cous cous', 'couscous', 'cuscus'], 376, 12.8, 72.4, 5, 10, 80, ['cereale']),
   _A('grano-saraceno', 'Grano saraceno', ['grano saraceno', 'saraceno'], 343, 13.3, 61.5, 10, 1, 80, ['cereale']),
-  _A('avena', "Fiocchi d'avena", ['fiocchi d avena', 'avena', 'porridge', 'fiocchi di avena'], 379, 13.2, 57.6, 10.1, 6, 40, ['cereale'], { cucchiaio: 8 }),
+  _A('avena', "Fiocchi d'avena", ['fiocchi d avena', 'avena', 'fiocchi di avena'], 379, 13.2, 57.6, 10.1, 6, 40, ['cereale'], { cucchiaio: 8 }),
   _A('polenta', 'Polenta (farina di mais)', ['polenta', 'farina di mais'], 362, 8.7, 72, 3.8, 1, 80, ['cereale']),
   _A('gnocchi', 'Gnocchi di patate', ['gnocchi', 'gnocchi di patate'], 150, 3.5, 32, 1.5, 400, 200, ['cereale', 'processato']),
   _A('pasta-fresca', "Pasta fresca all'uovo", ['pasta fresca', 'pasta all uovo', 'tagliatelle', 'fettuccine', 'tortellini', 'ravioli'], 280, 11, 50, 2, 30, 125, ['cereale']),
@@ -255,6 +255,8 @@ ALIMENTI_BASE.push(
   _A('muesli', 'Muesli', ['muesli', 'granola'], 360, 9.8, 58, 8, 15, 40, ['cereale']),
   _A('biscotti', 'Biscotti secchi', ['biscotti', 'biscotto', 'frollini'], 450, 7, 70, 2.5, 300, 30, ['cereale', 'processato'], { pezzo: 8 }),
   _A('cornetto', 'Cornetto / brioche', ['cornetto', 'brioche', 'croissant'], 406, 8, 44, 2, 400, 60, ['cereale', 'processato'], { pezzo: 60 }),
+  _A('pangrattato', 'Pangrattato', ['pangrattato', 'pan grattato', 'impanatura'], 395, 13, 72, 3.5, 700, 20, ['cereale'], { cucchiaio: 8 }),
+  _A('focaccia', 'Focaccia', ['focaccia', 'focaccia genovese', 'focaccia all olio'], 300, 7, 43, 2, 800, 100, ['cereale'], { pezzo: 100, fetta: 80 }),
   _A('farina', 'Farina 00', ['farina', 'farina 00', 'farina bianca'], 340, 11, 74, 2.2, 1, 50, ['cereale'], { cucchiaio: 10 }),
   _A('barretta-proteica', 'Barretta proteica', ['barretta proteica', 'protein bar', 'barretta'], 360, 33, 12, 8, 300, 60, ['processato'], { pezzo: 60 }),
 
