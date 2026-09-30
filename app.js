@@ -197,8 +197,59 @@ function sumN(list) {
   return t;
 }
 
-function pushRecent(fid, g) {
-  S.recenti = [{ fid, g }, ...S.recenti.filter((x) => x.fid !== fid)].slice(0, 10);
+function pushRecent(fid, g, inc = 0) {
+  S.recenti = [{ fid, g, ...(inc ? { inc } : {}) }, ...S.recenti.filter((x) => x.fid !== fid)].slice(0, 10);
+}
+
+// Range di kcal di un gruppo di voci: le voci non pesate allargano la forchetta.
+function kcalRange(voci) {
+  let lo = 0, hi = 0, unc = false;
+  for (const v of voci) {
+    const k = voceNutr(v).kcal, i = v.inc || 0;
+    lo += k * (1 - i);
+    hi += k * (1 + i);
+    if (i && k >= 5) unc = true;
+  }
+  return { lo, hi, unc };
+}
+const r10 = (n) => Math.round(n / 10) * 10;
+const fmtRange = (r) => `${fmt(r10(r.lo))}–${fmt(r10(r.hi))}`;
+
+// Kcal da olio/grassi da condimento e formaggi (anche dentro le ricette): le voci più incerte.
+function isFatOrCheese(a) {
+  return (a.tag || []).includes('grasso') || ((a.tag || []).includes('latticino') && a.kcal >= 200);
+}
+function fatCheeseKcal(v) {
+  if (v.rid) {
+    const r = recipeById(v.rid);
+    if (!r) return 0;
+    const info = recipeInfo(r);
+    if (!info.tot.kcal) return 0;
+    let fk = 0;
+    for (const ing of r.ingredienti) {
+      const a = foodById(ing.fid);
+      if (a && isFatOrCheese(a)) fk += (a.kcal * ing.g) / 100;
+    }
+    return voceNutr(v).kcal * (fk / info.tot.kcal);
+  }
+  const a = v.fid ? foodById(v.fid) : null;
+  return (a ? isFatOrCheese(a) : isFatOrCheese({ tag: v.tag, kcal: v.per.kcal })) ? voceNutr(v).kcal : 0;
+}
+
+// Alimento che da solo fornisce più della metà della fibra del giorno.
+function fiberConcentration(k) {
+  const voci = dayVoci(S.giorni[k]);
+  const tot = sumN(voci.map(voceNutr)).f;
+  if (tot < S.settings.fibraBassa) return null;
+  const by = new Map();
+  for (const v of voci) {
+    const key = v.fid || v.rid || v.nome;
+    const e = by.get(key) || { nome: v.nome, f: 0 };
+    e.f += voceNutr(v).f;
+    by.set(key, e);
+  }
+  const top = [...by.values()].sort((a, b) => b.f - a.f)[0];
+  return top && top.f > tot * 0.5 ? { ...top, tot } : null;
 }
 
 /* ================================================================
@@ -435,6 +486,10 @@ function unitGrams(food, unit) {
   return food.unita?.[unit] ?? MISURE_DEFAULT[unit] ?? food.porz;
 }
 
+// Incertezza (±) delle quantità non pesate: le misure a cucchiaio sono le più ballerine.
+const INC = { pezzo: 0.1, vasetto: 0.05, scatoletta: 0.05, confezione: 0.05, lattina: 0.05, bottiglia: 0.1, misurino: 0.1, bustina: 0.1,
+  cucchiaio: 0.4, cucchiaino: 0.4, filo: 0.5, noce: 0.4, pizzico: 0.5, manciata: 0.3, fetta: 0.25, porzione: 0.25 };
+
 // Risolve le grammature per un alimento o ricetta. Ritorna { g, nota, dubbio }.
 function resolveGrams(entry, qty) {
   const isRecipe = entry.kind === 'recipe';
@@ -443,19 +498,19 @@ function resolveGrams(entry, qty) {
   const grams = qty.find((q) => ['g', 'kg', 'hg', 'ml', 'cl', 'dl'].includes(q.unit));
   if (grams) {
     const mult = { g: 1, kg: 1000, hg: 100, ml: 1, cl: 10, dl: 100 }[grams.unit];
-    return { g: grams.n * mult, nota: '' };
+    return { g: grams.n * mult, nota: '', inc: 0 };
   }
   const q = qty[0];
   if (!q) {
-    return { g: pezzo ?? target.porz, nota: pezzo ? '1 pezzo' : 'porzione standard', stimato: true };
+    return { g: pezzo ?? target.porz, nota: pezzo ? '1 pezzo' : 'porzione standard', stimato: true, inc: pezzo ? INC.pezzo : INC.porzione };
   }
   if (q.unit) {
-    return { g: q.n * unitGrams(target, q.unit), nota: `${fmt(q.n, q.n % 1 ? 1 : 0)} ${q.n > 1 ? PLURALI[q.unit] || q.unit : q.unit}` };
+    return { g: q.n * unitGrams(target, q.unit), nota: `${fmt(q.n, q.n % 1 ? 1 : 0)} ${q.n > 1 ? PLURALI[q.unit] || q.unit : q.unit}`, inc: INC[q.unit] ?? INC.porzione };
   }
   // numero senza unità
-  if (q.n >= 15 || (!pezzo && q.n >= 5)) return { g: q.n, nota: '' };
-  if (pezzo) return { g: q.n * pezzo, nota: `${fmt(q.n, q.n % 1 ? 1 : 0)} × ${fmt(pezzo)} g` };
-  return { g: q.n * target.porz, nota: `${fmt(q.n, q.n % 1 ? 1 : 0)} porzioni?`, dubbio: true };
+  if (q.n >= 15 || (!pezzo && q.n >= 5)) return { g: q.n, nota: '', inc: 0 };
+  if (pezzo) return { g: q.n * pezzo, nota: `${fmt(q.n, q.n % 1 ? 1 : 0)} × ${fmt(pezzo)} g`, inc: INC.pezzo };
+  return { g: q.n * target.porz, nota: `${fmt(q.n, q.n % 1 ? 1 : 0)} porzioni?`, dubbio: true, inc: INC.porzione };
 }
 
 // Divide il testo in segmenti: virgole, punto e virgola, a capo, "+".
@@ -502,6 +557,7 @@ function parseInput(text) {
     if (row.pick) {
       const res = resolveGrams(row.pick, qty);
       row.g = r0(res.g);
+      row.inc = res.inc;
       row.nota = res.nota;
       if (res.dubbio) row.stato = 'amb-qty';
     }
@@ -513,7 +569,9 @@ function parseInput(text) {
 function rowToVoce(row) {
   const e = row.pick;
   if (!e || !row.g) return null;
-  return e.kind === 'recipe' ? makeVoceRicetta(e.item, row.g) : makeVoce(e.item, row.g);
+  const v = e.kind === 'recipe' ? makeVoceRicetta(e.item, row.g) : makeVoce(e.item, row.g);
+  if (row.inc) v.inc = row.inc;
+  return v;
 }
 
 /* ================================================================
@@ -855,7 +913,7 @@ function render() {
    VISTA: OGGI
    ================================================================ */
 
-function barHtml(label, val, min, max, unit, kind) {
+function barHtml(label, val, min, max, unit, kind, extra = '') {
   // kind: 'range' (kcal/fibra: min–max), 'min' (proteine: almeno), 'cap' (carbo: tetto)
   const scale = (kind === 'cap' ? max : max) * 1.15;
   const pct = clamp((val / scale) * 100, 0, 100);
@@ -885,7 +943,7 @@ function barHtml(label, val, min, max, unit, kind) {
   return `<div>
     <div class="bar-head"><b>${label}</b><span class="val num">${fmt(val)} <span>/ ${tgt} ${unit}</span></span></div>
     <div class="track"><div class="fill ${cls}" style="width:${pct}%"></div>${tickMin}${tickMax}</div>
-    <div class="bar-foot ${cls === 'bad' ? 'bad' : ''}">${foot}</div>
+    <div class="bar-foot ${cls === 'bad' ? 'bad' : ''}">${extra ? `${extra} · ` : ''}${foot}</div>
   </div>`;
 }
 
@@ -899,10 +957,15 @@ function viewOggi() {
 
   let h = '';
   if (t.na > st.sodioMax) {
-    h += `<div class="alert bad"><div><b>Sodio alto: ${fmt(t.na)} mg</b>Supera la soglia di ${fmt(st.sodioMax)} mg. Bevi di più e nei prossimi pasti evita salumi, formaggi stagionati e conserve.</div></div>`;
+    h += `<div class="alert bad"><div><b>Sodio a ${fmt(t.na)} mg (soglia ${fmt(st.sodioMax)})</b>Domani la bilancia segnerà acqua, non grasso.</div></div>`;
   }
+  const fc = fiberConcentration(k);
+  if (fc) {
+    h += `<div class="alert warn"><div><b>${esc(fc.nome)}: ${fmt(fc.f)} dei ${fmt(fc.tot)} g di fibra di oggi (${fmt((fc.f / fc.tot) * 100)}%)</b>Tanta fibra da un solo alimento è la causa tipica di gonfiore.</div></div>`;
+  }
+  const kr = kcalRange(dayVoci(d));
   h += `<section class="card"><div class="bars">
-    ${barHtml('Calorie', t.kcal, st.kcalMin, st.kcalMax, 'kcal', 'range')}
+    ${barHtml('Calorie', t.kcal, st.kcalMin, st.kcalMax, 'kcal', 'range', kr.unc ? `stima ${fmtRange(kr)} kcal` : '')}
     ${barHtml('Proteine', t.p, st.protMin, st.protMax, 'g', 'min')}
     ${barHtml('Carbo netti', t.cn, 0, st.carboMax, 'g', 'cap')}
     ${barHtml('Fibra', t.f, st.fibraMin, st.fibraMax, 'g', 'range')}
@@ -923,15 +986,21 @@ function viewOggi() {
   for (const p of PASTI) {
     const voci = d?.pasti[p.id] || [];
     const tp = sumN(voci.map(voceNutr));
-    h += `<section class="card meal"><div class="meal-head"><h3>${p.nome}</h3>${voci.length ? `<div class="tot num">${fmt(tp.kcal)} kcal · P ${fmt(tp.p)} · C ${fmt(tp.cn)} · F ${fmt(tp.f)}</div>` : ''}</div>`;
+    const mr = kcalRange(voci);
+    h += `<section class="card meal"><div class="meal-head"><h3>${p.nome}</h3>${voci.length ? `<div class="tot num">${mr.unc ? fmtRange(mr) : fmt(tp.kcal)} kcal · P ${fmt(tp.p)} · C ${fmt(tp.cn)} · F ${fmt(tp.f)}</div>` : ''}</div>`;
+    const fk = voci.reduce((a, v) => a + fatCheeseKcal(v), 0);
+    if (tp.kcal > 0 && fk > tp.kcal * 0.2) {
+      h += `<div class="meal-note num">Olio e formaggi: ${fmt(fk)} kcal, il ${fmt((fk / tp.kcal) * 100)}% del pasto. Sono le voci più incerte: pesale.</div>`;
+    }
     if (!voci.length) {
       h += `<button class="item" data-act="add-to" data-pasto="${p.id}"><span class="nm muted">+ Aggiungi a ${p.nome.toLowerCase()}</span></button>`;
     } else {
       for (const v of voci) {
         const n = voceNutr(v);
+        const vr = kcalRange([v]);
         h += `<button class="item" data-act="edit-voce" data-pasto="${p.id}" data-id="${v.id}">
-          <span class="nm"><b>${esc(v.nome)}</b><small class="num">${fmt(v.g)} g · P ${fmt(n.p)} · C ${fmt(n.cn, n.cn < 10 && n.cn % 1 ? 1 : 0)} · F ${fmt(n.f)}</small></span>
-          <span class="kc num">${fmt(n.kcal)}</span></button>`;
+          <span class="nm"><b>${esc(v.nome)}</b><small class="num">${v.inc ? '~' : ''}${fmt(v.g)} g · P ${fmt(n.p)} · C ${fmt(n.cn, n.cn < 10 && n.cn % 1 ? 1 : 0)} · F ${fmt(n.f)}</small></span>
+          <span class="kc num">${vr.unc ? fmtRange(vr) : fmt(n.kcal)}</span></button>`;
       }
       h += `<div class="meal-foot"><button class="linkbtn" data-act="add-to" data-pasto="${p.id}">+ Aggiungi</button><span class="spacer"></span><button class="linkbtn" data-act="save-preset" data-pasto="${p.id}">Salva come preset</button></div>`;
     }
@@ -1002,11 +1071,12 @@ function onQuickClick(e) {
   const kind = b.dataset.quick;
   if (kind === 'food') {
     const a = foodById(b.dataset.id);
-    openQtySheet({ title: a.nome, g: num(b.dataset.g) || a.porz, food: a });
+    const rec = S.recenti.find((x) => x.fid === a.id);
+    openQtySheet({ title: a.nome, g: num(b.dataset.g) || a.porz, food: a, inc: rec ? rec.inc || 0 : INC.porzione });
   } else if (kind === 'recipe') {
     const r = recipeById(b.dataset.id);
     const info = recipeInfo(r);
-    openQtySheet({ title: r.nome, g: r0(info.porzG), recipe: r, porzG: info.porzG });
+    openQtySheet({ title: r.nome, g: r0(info.porzG), recipe: r, porzG: info.porzG, inc: INC.porzione });
   } else if (kind === 'preset') {
     const p = S.preset.find((x) => x.id === b.dataset.id);
     const undo = snapshotDay(ui.day);
@@ -1020,7 +1090,7 @@ function onQuickClick(e) {
 }
 const pastoNome = (id) => PASTI.find((p) => p.id === id).nome.toLowerCase();
 
-function openQtySheet({ title, g, food, recipe, porzG }) {
+function openQtySheet({ title, g, food, recipe, porzG, inc = 0 }) {
   openSheet(`<h2>${esc(title)}</h2>
     <div class="seg" id="pastoSeg2">${PASTI.map((p) => `<button data-p="${p.id}" aria-pressed="${p.id === ui.pasto}">${p.nome}</button>`).join('')}</div>
     <label class="f"><span>Grammi</span><input class="inp num" id="qg" inputmode="decimal" value="${r0(g)}"></label>
@@ -1035,20 +1105,21 @@ function openQtySheet({ title, g, food, recipe, porzG }) {
       $('#qprev', el).textContent = `${fmt(n.kcal)} kcal · P ${fmt(n.p)} g · C netti ${fmt(n.cn, 1)} g · fibra ${fmt(n.f, 1)} g`;
     };
     upd();
-    inp.addEventListener('input', upd);
+    inp.addEventListener('input', () => { inc = 0; upd(); });
     $$('#pastoSeg2 button', el).forEach((b) => b.addEventListener('click', () => {
       ui.pasto = b.dataset.p;
       $$('#pastoSeg2 button', el).forEach((x) => x.setAttribute('aria-pressed', x === b));
     }));
-    $$('[data-porz]', el).forEach((b) => b.addEventListener('click', () => { inp.value = r0(porzG * num(b.dataset.porz)); upd(); }));
-    $$('[data-pz]', el).forEach((b) => b.addEventListener('click', () => { inp.value = r0(food.unita.pezzo * num(b.dataset.pz)); upd(); }));
+    $$('[data-porz]', el).forEach((b) => b.addEventListener('click', () => { inp.value = r0(porzG * num(b.dataset.porz)); inc = INC.porzione; upd(); }));
+    $$('[data-pz]', el).forEach((b) => b.addEventListener('click', () => { inp.value = r0(food.unita.pezzo * num(b.dataset.pz)); inc = INC.pezzo; upd(); }));
     $('#qok', el).addEventListener('click', () => {
       const grams = num(inp.value);
       if (!grams || grams <= 0) return;
       const undo = snapshotDay(ui.day);
       const v = food ? makeVoce(food, grams) : makeVoceRicetta(recipe, grams);
+      if (inc) v.inc = inc;
       getDay(ui.day, true).pasti[ui.pasto].push(v);
-      if (food) pushRecent(food.id, grams);
+      if (food) pushRecent(food.id, grams, inc);
       save();
       closeSheet();
       render();
@@ -1077,7 +1148,7 @@ function commitRows(rows) {
     const v = rowToVoce(row);
     if (!v) continue;
     d.pasti[ui.pasto].push(v);
-    if (v.fid) pushRecent(v.fid, v.g);
+    if (v.fid) pushRecent(v.fid, v.g, v.inc);
     n++;
   }
   cleanupDay(ui.day);
@@ -1108,7 +1179,7 @@ function openConfirmSheet(rows) {
     return `<div class="parse-row ${cls}"><div class="src">«${esc(r.src)}»</div>${body}</div>`;
   }).join('');
 
-  openSheet(`<h2>Controlla</h2><p class="small muted">Le voci riconosciute con certezza sono già pronte. Scegli solo dove serve.</p>
+  openSheet(`<h2>Controlla</h2><p class="small muted">${rows.filter((r) => r.stato !== 'ok').length} da sistemare, ${rows.filter((r) => r.stato === 'ok').length} già pronte.</p>
     <div id="rows"></div>
     <div class="sheet-actions"><button class="btn" data-close>Annulla</button><button class="btn primary" id="rowsOk">Aggiungi</button></div>`, (el) => {
     const box = $('#rows', el);
@@ -1123,6 +1194,7 @@ function openConfirmSheet(rows) {
       const i = e.target.dataset.g;
       if (i == null) return;
       rows[i].g = num(e.target.value);
+      rows[i].inc = 0; // grammi scritti a mano = pesati
       const ready = rows.every((r) => r.pick && r.g > 0);
       $('#rowsOk', el).disabled = !ready;
     });
@@ -1134,6 +1206,7 @@ function openConfirmSheet(rows) {
         r.pick = r.cands[c.dataset.cand];
         const res = resolveGrams(r.pick, r.qty);
         r.g = r0(res.g);
+        r.inc = res.inc;
         r.nota = res.nota;
         r.stato = res.dubbio ? 'amb-qty' : r.stato;
         return refresh();
@@ -1152,6 +1225,8 @@ function openConfirmSheet(rows) {
           r.cands = [entry, ...r.cands.filter((x) => x.item.id !== entry.item.id)].slice(0, 4);
           const res = resolveGrams(entry, r.qty);
           r.g = r0(res.g);
+          r.inc = res.inc;
+        r.inc = res.inc;
           r.nota = res.nota;
           r.stato = 'amb';
           openConfirmSheet(rows);
@@ -1166,6 +1241,8 @@ function openConfirmSheet(rows) {
           r.cands = [entry];
           const res = resolveGrams(entry, r.qty);
           r.g = r0(res.g);
+          r.inc = res.inc;
+        r.inc = res.inc;
           r.stato = 'amb';
           openConfirmSheet(rows);
         }, () => openConfirmSheet(rows));
@@ -1208,6 +1285,7 @@ function openVoceEditor(pasto, id) {
   const v = list.find((x) => x.id === id);
   if (!v) return;
   openSheet(`<h2>${esc(v.nome)}</h2>
+    ${v.inc ? `<p class="small muted num">Quantità stimata (±${r0(v.inc * 100)}%). Se la pesi e correggi i grammi, la forchetta sparisce.</p>` : ''}
     <label class="f"><span>Grammi</span><input class="inp num" id="eg" inputmode="decimal" value="${v.g}"></label>
     <label class="f"><span>Pasto</span><select class="inp" id="ep">${PASTI.map((p) => `<option value="${p.id}" ${p.id === pasto ? 'selected' : ''}>${p.nome}</option>`).join('')}</select></label>
     <p class="small muted num" id="eprev"></p>
@@ -1232,6 +1310,7 @@ function openVoceEditor(pasto, id) {
       const g = num(inp.value);
       if (!g || g <= 0) return;
       const undo = snapshotDay(ui.day);
+      if (r0(g) !== v.g) delete v.inc;
       v.g = r0(g);
       const np = $('#ep', el).value;
       if (np !== pasto) {
@@ -1471,7 +1550,7 @@ function viewImpostazioni() {
   <details class="sec" open><summary>Dati personali</summary><div class="body">
     <div class="grid2">${field('altezza', 'Altezza', st.altezza, 'cm')}${field('peso', 'Peso attuale', st.peso ?? (last ? S.pesi[last] : ''), 'kg')}</div>
     ${field('fabbisogno', 'Fabbisogno calorico stimato', st.fabbisogno, 'kcal')}
-    ${st.peso || last ? `<p class="small muted num">BMI ${fmt((st.peso ?? S.pesi[last]) / (st.altezza / 100) ** 2, 1)} · deficit al centro del target: ${fmt(st.fabbisogno - (st.kcalMin + st.kcalMax) / 2)} kcal/giorno</p>` : ''}
+    ${st.peso || last ? `<p class="small muted num">Deficit al centro del target: ${fmt(st.fabbisogno - (st.kcalMin + st.kcalMax) / 2)} kcal/giorno</p>` : ''}
   </div></details>
 
   <details class="sec"><summary>Target giornalieri</summary><div class="body">
