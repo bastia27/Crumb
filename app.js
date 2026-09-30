@@ -57,6 +57,7 @@ function emptyState() {
     ricette: [],         // ricette create dall'utente
     preset: [],          // { id, nome, voci: [voce] }
     recenti: [],         // [{ fid, g }] più recente per primo
+    dispensa: null,      // { base: [fid], fresco: [{ fid, t: 'YYYY-MM-DD' }] }
   };
 }
 
@@ -692,22 +693,153 @@ function recipeHasFoodTag(r, tag) {
   return r.ingredienti.some((ing) => (foodById(ing.fid)?.tag || []).includes(tag));
 }
 
-// "Cosa mangio stasera": filtro sulle ricette che stanno nel residuo di kcal,
-// ordinate per quanto colmano il gap proteico.
+/* ——— Dispensa: base fissa + fresco che vale 3 giorni ——— */
+
+const FRESCO_GIORNI = 3;
+const BASE_DEFAULT = ['olio-evo', 'sale', 'aceto-balsamico', 'brodo'];
+const NON_CONTORNI = new Set(['passata', 'minestrone', 'parmigiana', 'cipolla', 'porri', 'sedano', 'crauti', 'germogli', 'ravanelli']);
+
+function dispensa() {
+  if (!S.dispensa) S.dispensa = { base: [...BASE_DEFAULT], fresco: [] };
+  const lim = addDays(todayKey(), -(FRESCO_GIORNI - 1));
+  S.dispensa.fresco = S.dispensa.fresco.filter((x) => x.t >= lim && foodById(x.fid));
+  S.dispensa.base = S.dispensa.base.filter((id) => foodById(id));
+  return S.dispensa;
+}
+function inCasa() {
+  const d = dispensa();
+  return new Set([...d.base, ...d.fresco.map((x) => x.fid)]);
+}
+// Senza nessuna fonte proteica registrata il filtro escluderebbe tutto: in quel caso non filtra.
+function dispensaUsabile(have) {
+  return [...have].some((id) => (foodById(id)?.p || 0) >= 10);
+}
+const scadenzaFresco = (x) => addDays(x.t, FRESCO_GIORNI - 1);
+
+// Testo libero → alimenti del database (le ricette non contano).
+function parseFoods(text) {
+  const ids = [], miss = [];
+  for (const row of parseInput(text)) {
+    const c = row.pick?.kind === 'food' ? row.pick : row.cands.find((x) => x.kind === 'food' && x.score >= 0.6);
+    if (c) ids.push(c.item.id);
+    else miss.push(row.src);
+  }
+  return { ids: [...new Set(ids)], miss };
+}
+
+// Categoria di sostituzione: si scambia solo dentro la stessa categoria.
+function subCategory(a) {
+  const t = a.tag || [];
+  if (t.includes('latticino') && t.includes('grasso')) return null; // panna, mascarpone, burro: nessuno scambio
+  if (t.includes('grasso') && a.p < 2) return 'grasso';
+  if (t.includes('latticino') && a.kcal >= 200) return a.kcal >= 340 ? 'stagionato' : 'fresco';
+  if (t.includes('legume')) return 'legume';
+  if (a.p >= 12) for (const c of ['pesce', 'carne-bianca', 'carne-rossa']) if (t.includes(c)) return c;
+  if (a.id === 'uova' || a.id === 'albume') return 'uova';
+  if (t.includes('verdura') && !t.includes('processato') && !NON_CONTORNI.has(a.id)) return 'verdura';
+  return null;
+}
+const isProteinCat = (c) => ['pesce', 'carne-bianca', 'carne-rossa', 'legume', 'uova'].includes(c);
+
+// Miglior sostituto disponibile e grammi equivalenti (stesse proteine; stesse kcal per grassi e formaggi).
+function findSub(a, have, used) {
+  const cat = subCategory(a);
+  if (!cat) return null;
+  const proc = (x) => (x.tag || []).includes('processato');
+  let best = null;
+  for (const id of have) {
+    if (used.has(id)) continue;
+    const b = foodById(id);
+    if (!b || subCategory(b) !== cat || proc(b) !== proc(a)) continue;
+    let diff;
+    if (isProteinCat(cat)) {
+      if (!a.p || Math.abs(b.p - a.p) / a.p > 0.35) continue;
+      diff = Math.abs(b.p - a.p) / a.p - (a.tag.includes('pesce-azzurro') && b.tag.includes('pesce-azzurro') ? 0.5 : 0);
+    } else if (cat === 'verdura') {
+      diff = Math.abs(b.cn - a.cn) / 10;
+    } else {
+      diff = Math.abs(b.kcal - a.kcal) / a.kcal;
+    }
+    if (!best || diff < best.diff || (diff === best.diff && b.nome < best.b.nome)) best = { b, diff };
+  }
+  if (!best) return null;
+  const b = best.b;
+  const ratio = isProteinCat(cat) ? a.p / b.p : cat === 'verdura' ? 1 : a.kcal / b.kcal;
+  return { b, ratio };
+}
+
+const MAX_SUBS = 2;
+// Un ingrediente che dà il nome alla ricetta ("melanzane grigliate") si scambia solo se è la fonte proteica.
+function nelTitolo(r, a) {
+  const t = ` ${norm(r.nome)} `;
+  return [a.nome, ...(a.alias || [])].some((n) => t.includes(` ${norm(n)} `));
+}
+function puoSostituire(r, a, nSubs) {
+  const cat = subCategory(a);
+  if (!cat || nSubs >= MAX_SUBS) return false;
+  if (isProteinCat(cat) || cat === 'grasso') return true;
+  if (nelTitolo(r, a)) return false;
+  if (cat === 'verdura' && (r.tag || []).includes('senza-cottura')) return false;
+  return true;
+}
+
+// Confronta una ricetta con quello che c'è in casa.
+// status: ok (tutto c'è), sub (c'è con sostituzioni), manca1 (manca un ingrediente), no.
+function analyzeRecipe(r, have) {
+  const info = recipeInfo(r);
+  const used = new Set(r.ingredienti.map((i) => i.fid));
+  const ing = [], subs = [], missing = [], optional = [];
+  for (const it of r.ingredienti) {
+    const a = foodById(it.fid);
+    if (!a) continue;
+    if (have.has(a.id)) {
+      ing.push({ fid: a.id, g: it.g });
+      continue;
+    }
+    const s = puoSostituire(r, a, subs.length) ? findSub(a, have, used) : null;
+    if (s) {
+      used.add(s.b.id);
+      ing.push({ fid: s.b.id, g: Math.round((it.g * s.ratio) / 5) * 5, from: a.id });
+      subs.push({ from: a, to: s.b });
+      continue;
+    }
+    const k = (a.kcal * it.g) / 100, p = (a.p * it.g) / 100;
+    if (k < info.tot.kcal * 0.05 && p < info.tot.p * 0.05 && !nelTitolo(r, a)) {
+      optional.push(a);
+      ing.push({ fid: a.id, g: 0, optional: true });
+    } else {
+      // Resta nel conto con i suoi grammi: è quello che andrebbe comprato.
+      missing.push(a);
+      ing.push({ fid: a.id, g: it.g, missing: true });
+    }
+  }
+  const status = missing.length ? (missing.length === 1 ? 'manca1' : 'no') : subs.length ? 'sub' : 'ok';
+  const tot = sumN(ing.filter((x) => x.g > 0).map((x) => nutr(foodById(x.fid), x.g)));
+  const n = {};
+  for (const key in tot) n[key] = tot[key] / (r.porzioni || 1);
+  return { r, status, ing, subs, missing, optional, n };
+}
+const STATUS_RANK = { ok: 0, sub: 0, all: 0, manca1: 1, no: 2 };
+
+// "Cosa mangio stasera": filtro sulle ricette che si possono fare con quello che c'è in casa,
+// che stanno nel residuo di kcal, ordinate per quanto colmano il gap proteico.
 function stasera(k) {
   const rem = remaining(k);
   const gap = Math.max(0, rem.pMin);
+  const have = inCasa();
+  const filtra = dispensaUsabile(have);
   const list = allRecipes()
-    .map((r) => ({ r, n: recipePortion(r) }))
-    .filter((x) => x.n.kcal <= rem.kcalMax)
+    .map((r) => (filtra ? analyzeRecipe(r, have) : { r, status: 'all', ing: null, subs: [], missing: [], optional: [], n: recipePortion(r) }))
+    .filter((x) => x.status !== 'no' && x.n.kcal <= rem.kcalMax)
     .sort((a, b) => {
+      if (STATUS_RANK[a.status] !== STATUS_RANK[b.status]) return STATUS_RANK[a.status] - STATUS_RANK[b.status];
       if (gap > 0) {
         const ca = Math.min(a.n.p, gap), cb = Math.min(b.n.p, gap);
         if (Math.abs(ca - cb) > 0.5) return cb - ca;
       }
       return a.n.kcal - b.n.kcal || a.r.nome.localeCompare(b.r.nome);
     });
-  return { rem, gap, list };
+  return { rem, gap, list, filtra };
 }
 
 // Suggerimento proattivo: un solo gap, nell'ordine di priorità della specifica, con 2-3 ricette.
@@ -717,7 +849,9 @@ function dailyTip(k) {
   const rem = remaining(k);
   const fits = (x) => rem.kcalMax < 300 || x.n.kcal <= rem.kcalMax;
   const pool = allRecipes().map((r) => ({ r, n: recipePortion(r), tags: recipeTags(r) }));
-  const pick = (filter, sort) => pool.filter((x) => filter(x) && fits(x)).sort(sort).slice(0, 3).map((x) => x.r);
+  const have = inCasa();
+  const rank = dispensaUsabile(have) ? (x) => STATUS_RANK[analyzeRecipe(x.r, have).status] : () => 0;
+  const pick = (filter, sort) => pool.filter((x) => filter(x) && fits(x)).sort((a, b) => rank(a) - rank(b) || sort(a, b)).slice(0, 3).map((x) => x.r);
   const byP = (a, b) => b.n.p - a.n.p;
 
   if (!ws.n && !dayHasData(k)) {
@@ -1485,16 +1619,18 @@ function tagChips(tags) {
 }
 
 // Scheda ricetta: ingredienti con grammature previste (per le porzioni scelte), modificabili.
-function openRecipeSheet(r, pasto, back) {
+function openRecipeSheet(r, pasto, back, variant) {
+  const ings = variant ? variant.ing : r.ingredienti;
   if (pasto) ui.pasto = pasto;
   let mult = 1;
   const perPorz = (ing) => ing.g / (r.porzioni || 1);
-  const draw = () => r.ingredienti.map((ing, i) => {
+  const draw = () => ings.map((ing, i) => {
     const a = foodById(ing.fid);
-    return `<div class="row ing"><span class="nm">${esc(a?.nome || ing.fid)}</span><input class="inp g num" data-ing="${i}" inputmode="decimal" value="${r0(perPorz(ing) * mult)}" aria-label="grammi di ${esc(a?.nome || '')}"><span class="small muted">g</span></div>`;
+    const note = ing.from ? `al posto di ${foodById(ing.from).nome.toLowerCase()}` : ing.missing ? 'non ce l’hai' : ing.optional ? 'facoltativo, non ce l’hai' : '';
+    return `<div class="row ing"><span class="nm">${esc(a?.nome || ing.fid)}${note ? `<small class="${ing.missing ? 'txt-bad' : 'muted'}">${note}</small>` : ''}</span><input class="inp g num" data-ing="${i}" inputmode="decimal" value="${r0(perPorz(ing) * mult)}" aria-label="grammi di ${esc(a?.nome || '')}"><span class="small muted">g</span></div>`;
   }).join('');
   openSheet(`<h2>${esc(r.nome)}</h2>
-    <p class="small muted num">${recipeMeta(r)} a porzione${r.porzioni > 1 ? ` · la ricetta fa ${r.porzioni} porzioni` : ''}</p>
+    <p class="small muted num">${variant ? `${r.tempo ? `${r.tempo} min · ` : ''}${fmt(variant.n.kcal)} kcal · P ${fmt(variant.n.p)} · C ${fmt(variant.n.cn)} · F ${fmt(variant.n.f)}` : recipeMeta(r)} a porzione${r.porzioni > 1 ? ` · la ricetta fa ${r.porzioni} porzioni` : ''}</p>
     ${tagChips(recipeTags(r))}
     ${r.procedimento?.length ? `<ol class="steps">${r.procedimento.slice(0, 4).map((s) => `<li>${esc(s)}</li>`).join('')}</ol>` : ''}
     <div class="seg" id="rPasto">${PASTI.map((p) => `<button data-p="${p.id}" aria-pressed="${p.id === ui.pasto}">${p.nome}</button>`).join('')}</div>
@@ -1504,7 +1640,7 @@ function openRecipeSheet(r, pasto, back) {
     <div class="sheet-actions"><button class="btn" id="rBack">${back ? 'Indietro' : 'Chiudi'}</button><button class="btn primary" id="rAdd">Aggiungi</button></div>`, (el) => {
     const grams = () => $$('[data-ing]', el).map((inp) => num(inp.value) || 0);
     const upd = () => {
-      const t = sumN(r.ingredienti.map((ing, i) => { const a = foodById(ing.fid); return a ? nutr(a, grams()[i]) : sumN([]); }));
+      const t = sumN(ings.map((ing, i) => { const a = foodById(ing.fid); return a ? nutr(a, grams()[i]) : sumN([]); }));
       const end = sumN([dayTotals(ui.day), t]);
       $('#rTot', el).innerHTML = `<b>${fmt(t.kcal)} kcal · P ${fmt(t.p)} g · C ${fmt(t.cn, 1)} g · F ${fmt(t.f, 1)} g</b><br><span class="muted">La giornata arriverebbe a ${fmt(end.kcal)} kcal e ${fmt(end.p)} g di proteine.</span>`;
     };
@@ -1526,7 +1662,7 @@ function openRecipeSheet(r, pasto, back) {
       const undo = snapshotDay(ui.day);
       const d = getDay(ui.day, true);
       let n = 0;
-      r.ingredienti.forEach((ing, i) => {
+      ings.forEach((ing, i) => {
         const a = foodById(ing.fid);
         if (!a || !(g[i] > 0)) return;
         const v = makeVoce(a, g[i]);
@@ -1543,31 +1679,127 @@ function openRecipeSheet(r, pasto, back) {
   });
 }
 
+function dispensaChips(kind) {
+  const d = dispensa();
+  const items = kind === 'base' ? d.base.map((fid) => ({ fid })) : d.fresco;
+  if (!items.length) return `<p class="small muted">${kind === 'base' ? 'Vuota.' : 'Niente di fresco registrato.'}</p>`;
+  return `<div class="chips">${items.map((x) => {
+    const a = foodById(x.fid);
+    const exp = kind === 'fresco' ? ` · fino a ${labelDay(scadenzaFresco(x), false).split(' ').slice(0, 2).join(' ')}` : '';
+    return `<button class="chip sm" data-dis-del="${kind}:${esc(x.fid)}" aria-label="Togli ${esc(a.nome)}">${esc(a.nome)}${exp} ✕</button>`;
+  }).join('')}</div>`;
+}
+
+function dispensaAdd(kind, text) {
+  const { ids, miss } = parseFoods(text);
+  const d = dispensa();
+  if (kind === 'base') d.base = [...new Set([...d.base, ...ids])];
+  else {
+    const t = todayKey();
+    d.fresco = [...d.fresco.filter((x) => !ids.includes(x.fid)), ...ids.map((fid) => ({ fid, t }))];
+  }
+  save();
+  if (miss.length) toast(`Non riconosciuto: ${miss.join(', ')}`);
+  else if (ids.length) toast(`${ids.length} ${ids.length === 1 ? 'alimento aggiunto' : 'alimenti aggiunti'}`);
+}
+function dispensaDel(key) {
+  const [kind, fid] = key.split(':');
+  const d = dispensa();
+  if (kind === 'base') d.base = d.base.filter((x) => x !== fid);
+  else d.fresco = d.fresco.filter((x) => x.fid !== fid);
+  save();
+}
+
+// Blocco riutilizzabile (foglio "stasera" e Impostazioni): chip + campo di inserimento.
+function dispensaBlock(kind) {
+  const ph = kind === 'base' ? 'olio, uova, parmigiano, tonno' : 'pollo, zucchine, ricotta';
+  return `<div class="disp" data-kind="${kind}">
+    <div id="dis-${kind}">${dispensaChips(kind)}</div>
+    <div class="row" style="margin-top:8px"><input class="inp" id="disIn-${kind}" placeholder="${ph}" autocapitalize="off" autocomplete="off" spellcheck="false" style="flex:1"><button class="btn sm" data-dis-add="${kind}">Aggiungi</button></div>
+  </div>`;
+}
+function bindDispensa(root, onChange) {
+  root.addEventListener('click', (e) => {
+    const del = e.target.closest('[data-dis-del]');
+    if (del) {
+      dispensaDel(del.dataset.disDel);
+      return onChange();
+    }
+    const add = e.target.closest('[data-dis-add]');
+    if (add) {
+      const inp = $(`#disIn-${add.dataset.disAdd}`, root);
+      if (!inp.value.trim()) return;
+      dispensaAdd(add.dataset.disAdd, inp.value);
+      inp.value = '';
+      onChange();
+    }
+  });
+  root.addEventListener('keydown', (e) => {
+    const m = e.target.id?.match(/^disIn-(base|fresco)$/);
+    if (m && e.key === 'Enter' && e.target.value.trim()) {
+      e.preventDefault();
+      dispensaAdd(m[1], e.target.value);
+      e.target.value = '';
+      onChange();
+    }
+  });
+}
+
+function stasereCard(x, i, t0, rem) {
+  const st = S.settings;
+  const end = sumN([t0, x.n]);
+  const overC = x.n.cn > Math.max(0, rem.cn);
+  const notes = [];
+  if (x.subs.length) notes.push(x.subs.map((s) => `${s.to.nome} al posto di ${s.from.nome.toLowerCase()}`).join(' · '));
+  if (x.missing.length) notes.push(`<span class="txt-bad">Ti manca: ${esc(x.missing.map((a) => a.nome).join(', '))}</span>`);
+  if (x.optional.length) notes.push(`Senza: ${esc(x.optional.map((a) => a.nome.toLowerCase()).join(', '))}`);
+  return `<button class="opt" data-i="${i}">
+    <div class="row"><h3 style="flex:1">${esc(x.r.nome)}</h3><span class="num small muted">${x.r.tempo ? `${x.r.tempo} min` : ''}</span></div>
+    <div class="small num">${fmt(x.n.kcal)} kcal · P ${fmt(x.n.p)} g · C ${fmt(x.n.cn, 1)} g · F ${fmt(x.n.f, 1)} g</div>
+    ${notes.length ? `<div class="small">${notes.join('<br>')}</div>` : ''}
+    <div class="why num">Chiuderesti a ${fmt(end.kcal)} kcal e ${fmt(end.p)} g di proteine${overC ? ` · <span class="txt-bad">carbo oltre il tetto di ${fmt(end.cn - st.carboMax)} g</span>` : ''}</div>
+  </button>`;
+}
+
 function openStasera() {
-  const { rem, gap, list } = stasera(ui.day);
+  const { rem, gap, list, filtra } = stasera(ui.day);
   const st = S.settings;
   const t0 = rem.t;
+  const d = dispensa();
   let intro;
   if (rem.kcalMax <= 0) intro = `Sei a ${fmt(t0.kcal)} kcal, già oltre il massimo di ${fmt(st.kcalMax)}. Nessuna ricetta ci sta.`;
   else if (rem.kcalMin < 300) intro = `Ti restano ${fmt(Math.max(0, rem.kcalMin))} kcal per il minimo (${fmt(rem.kcalMax)} al massimo): è meno di un pasto.`;
   else if (rem.kcalMin > 1200) intro = `Hai mangiato troppo poco finora: ti restano ${fmt(rem.kcalMin)} kcal per un pasto solo.`;
   else intro = `Ti restano ${fmt(rem.kcalMin)}–${fmt(rem.kcalMax)} kcal e ${fmt(gap)} g di proteine per il minimo.`;
-  const shown = list.slice(0, 8);
-  const cards = shown.map((x, i) => {
-    const end = sumN([t0, x.n]);
-    const overC = x.n.cn > Math.max(0, rem.cn);
-    return `<button class="opt" data-i="${i}">
-      <div class="row"><h3 style="flex:1">${esc(x.r.nome)}</h3><span class="num small muted">${x.r.tempo ? `${x.r.tempo} min` : ''}</span></div>
-      <div class="small num">${fmt(x.n.kcal)} kcal · P ${fmt(x.n.p)} g · C ${fmt(x.n.cn, 1)} g · F ${fmt(x.n.f, 1)} g</div>
-      <div class="why num">Chiuderesti a ${fmt(end.kcal)} kcal e ${fmt(end.p)} g di proteine${overC ? ` · <span style="color:var(--bad)">carbo oltre il tetto di ${fmt(end.cn - st.carboMax)} g</span>` : ''}</div>
-      ${tagChips(recipeTags(x.r))}</button>`;
-  }).join('');
+
+  const pronte = list.filter((x) => STATUS_RANK[x.status] === 0).slice(0, 6);
+  const manca = filtra ? list.filter((x) => x.status === 'manca1').slice(0, 4) : [];
+  const shown = [...pronte, ...manca];
+  let body = '';
+  if (!filtra) body += `<p class="small muted">Nessuna fonte proteica in casa: mostro tutte le ricette. Scrivi cosa hai di fresco qui sopra.</p>`;
+  if (pronte.length) body += `${filtra ? `<h3 class="grp">Si possono fare · ${list.filter((x) => STATUS_RANK[x.status] === 0).length}</h3>` : ''}${pronte.map((x, i) => stasereCard(x, i, t0, rem)).join('')}`;
+  else if (filtra) body += `<p class="small">Con quello che c'è in casa nessuna ricetta completa sta nelle ${fmt(Math.max(0, rem.kcalMax))} kcal che restano.</p>`;
+  if (manca.length) body += `<h3 class="grp">Ti manca 1 ingrediente · ${list.filter((x) => x.status === 'manca1').length}</h3>${manca.map((x, i) => stasereCard(x, pronte.length + i, t0, rem)).join('')}`;
+
   openSheet(`<h2>Cosa mangio stasera</h2><p>${intro}</p>
-    ${cards || ''}
-    ${list.length > shown.length ? `<p class="small muted">Altre ${list.length - shown.length} ricette ci stanno: le trovi in Aggiungi → Ricette.</p>` : ''}
-    <p class="small muted">Ricette con una porzione entro ${fmt(Math.max(0, rem.kcalMax))} kcal, ordinate per quante proteine mancanti coprono.</p>
+    <section class="casa">
+      <div class="row"><b style="flex:1">Fresco in casa</b><span class="small muted">vale ${FRESCO_GIORNI} giorni</span></div>
+      ${dispensaBlock('fresco')}
+      <details class="base"><summary class="small">Base fissa: ${d.base.length} alimenti · modifica</summary>${dispensaBlock('base')}</details>
+    </section>
+    ${body}
+    <p class="small muted">Ricette con una porzione entro ${fmt(Math.max(0, rem.kcalMax))} kcal, ordinate per quante proteine mancanti coprono. Le sostituzioni restano nella stessa categoria e mantengono le proteine.</p>
     <div class="sheet-actions"><button class="btn" data-close>Chiudi</button></div>`, (el) => {
-    $$('[data-i]', el).forEach((b) => b.addEventListener('click', () => openRecipeSheet(shown[b.dataset.i].r, 'cena', openStasera)));
+    const baseOpen = () => $('details.base', el)?.open;
+    bindDispensa($('.casa', el), () => {
+      const wasOpen = baseOpen();
+      openStasera();
+      if (wasOpen) $('#sheet details.base').open = true;
+    });
+    $$('[data-i]', el).forEach((b) => b.addEventListener('click', () => {
+      const x = shown[b.dataset.i];
+      openRecipeSheet(x.r, 'cena', openStasera, x.ing ? x : null);
+    }));
   });
 }
 
@@ -1715,6 +1947,13 @@ function viewImpostazioni() {
     <div class="list">${allRecipes().map((r) => {
       return `<button class="li" data-recipe="${esc(r.id)}"><span class="nm">${esc(r.nome)}<small class="num">${recipeMeta(r)}</small>${tagChips(recipeTags(r))}</span>${r.base ? '' : '<span class="badge">tua</span>'}</button>`;
     }).join('')}</div>
+  </div></details>
+
+  <details class="sec" id="secDispensa"><summary>Dispensa</summary><div class="body">
+    <p class="small muted">Serve a "Cosa mangio stasera". La base è quello che hai sempre; il fresco vale ${FRESCO_GIORNI} giorni.</p>
+    <b class="small">Base fissa</b>${dispensaBlock('base')}
+    <div style="height:14px"></div>
+    <b class="small">Fresco</b>${dispensaBlock('fresco')}
   </div></details>
 
   <details class="sec"><summary>Pasti salvati <span class="muted small" style="margin-left:8px">${S.preset.length}</span></summary><div class="body">
@@ -1988,6 +2227,8 @@ function bindView(main) {
     r[inp.dataset.k] = inp.dataset.k === 'n' ? Math.max(0, Math.round(num(inp.value) || 0)) : inp.value;
     save();
   }));
+  const sd = $('#secDispensa .body', main);
+  if (sd) bindDispensa(sd, () => { $('#dis-base', sd).innerHTML = dispensaChips('base'); $('#dis-fresco', sd).innerHTML = dispensaChips('fresco'); });
   const fs = $('#foodSearch', main);
   if (fs) fs.addEventListener('input', () => { $('#foodList', main).innerHTML = foodListHtml(fs.value.trim()); });
   const imp = $('#importFile', main);
@@ -2038,4 +2279,4 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 render();
 
 // Esposto per i test in console / headless.
-window.CRUMB = { parseInput, voto, stasera, dailyTip, weekStats, ruleStatus, recipeTags, recipePortion, weightMA, findCandidates, exportDay, exportWeek, get state() { return S; } };
+window.CRUMB = { analyzeRecipe, inCasa, dispensaAdd, parseInput, voto, stasera, dailyTip, weekStats, ruleStatus, recipeTags, recipePortion, weightMA, findCandidates, exportDay, exportWeek, get state() { return S; } };
