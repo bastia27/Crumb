@@ -1,5 +1,5 @@
 // CRUMB — service worker minimo: mette in cache l'app e la serve offline.
-const CACHE = 'crumb-v1';
+const CACHE = 'crumb-v2';
 const FILES = ['./', 'index.html', 'app.js', 'data.js', 'ricette.js', 'manifest.webmanifest', 'icon.svg',
   'icons/apple-touch-icon.png', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png'];
 

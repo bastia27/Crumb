@@ -287,7 +287,9 @@ const UNIT_WORDS = {
   fetta: 'fetta', fette: 'fetta', fettina: 'fetta', fettine: 'fetta', porzione: 'porzione', porzioni: 'porzione', pezzo: 'pezzo', pezzi: 'pezzo',
   vasetto: 'vasetto', vasetti: 'vasetto', vaschetta: 'vasetto', scatoletta: 'scatoletta', scatolette: 'scatoletta', scatola: 'scatoletta',
   manciata: 'manciata', manciate: 'manciata', pugno: 'manciata', tazza: 'tazza', tazze: 'tazza', bicchiere: 'bicchiere', bicchieri: 'bicchiere',
-  confezione: 'confezione', confezioni: 'confezione', busta: 'confezione', bustina: 'confezione', filo: 'filo', noce: 'noce', noci_u: 'noce',
+  confezione: 'confezione', confezioni: 'confezione', busta: 'confezione', bustina: 'bustina', bustine: 'bustina',
+  pizzico: 'pizzico', pizzichi: 'pizzico', tazzina: 'tazzina', tazzine: 'tazzina', bottiglia: 'bottiglia', bottiglie: 'bottiglia', lattina: 'lattina', lattine: 'lattina',
+  calice: 'calice', calici: 'calice', bicchierino: 'bicchierino', bicchierini: 'bicchierino', pinta: 'pinta', pinte: 'pinta', pallina: 'pallina', palline: 'pallina', filo: 'filo', noce: 'noce', noci_u: 'noce',
   quadratino: 'quadratino', quadratini: 'quadratino', misurino: 'misurino', misurini: 'misurino',
 };
 
@@ -303,8 +305,14 @@ function stem(t) {
   if (s.length < 3) s = t.slice(0, 3);
   return s;
 }
+// Parole utili al nome: niente stopword; i numeri restano (servono a "greco 0%", "farina 00").
+function rawTokens(s) {
+  return norm(s).split(' ').map((t) => t.replace(/%$/, '')).filter((t) => t && !STOP.has(t) && !/^[.,/]+$/.test(t))
+    .map((t) => (/^\d+([.,]\d+)?$/.test(t) ? String(parseFloat(t.replace(',', '.'))) : t));
+}
+// Coppie [parola, radice]: la radice aggancia plurali e femminili, la parola intera distingue i refusi.
 function tokens(s) {
-  return norm(s).split(' ').filter((t) => t && !STOP.has(t) && !/^[\d.,/%]+$/.test(t)).map(stem);
+  return rawTokens(s).map((t) => [t, stem(t)]);
 }
 // Distanza di Damerau-Levenshtein (variante OSA): tollera refusi e lettere invertite.
 function dist(a, b) {
@@ -322,12 +330,13 @@ function dist(a, b) {
   }
   return d[m][n];
 }
-function tokSim(a, b) {
-  if (a === b) return 1;
-  // prefisso: "zucch" ⊂ "zucchin"
-  if (a.length >= 4 && b.length >= 4 && (a.startsWith(b) || b.startsWith(a))) return 0.9;
-  const s = 1 - dist(a, b) / Math.max(a.length, b.length);
-  return s >= 0.7 ? s : 0;
+function tokSim([ra, sa], [rb, sb]) {
+  if (ra === rb) return 1;
+  if (/^\d/.test(ra) || /^\d/.test(rb)) return 0;
+  if (sa === sb) return 0.95;
+  if (Math.abs(ra.length - rb.length) > ra.length / 3) return 0;
+  const s = 1 - dist(ra, rb) / Math.max(ra.length, rb.length);
+  return s >= 0.75 ? s : 0;
 }
 function phraseScore(q, a) {
   if (!q.length || !a.length) return 0;
@@ -343,10 +352,11 @@ function matchIndex() {
   const idx = [];
   for (const a of allFoods()) {
     const names = new Set([a.nome, ...(a.alias || [])]);
-    idx.push({ kind: 'food', item: a, keys: [...names].map(tokens).filter((t) => t.length) });
+    idx.push({ kind: 'food', item: a, keys: [...names].map(tokens).filter((t) => t.length), raw: new Set([...names].map((n) => rawTokens(n).join(' '))) });
   }
   for (const r of allRecipes()) {
-    idx.push({ kind: 'recipe', item: r, keys: [tokens(r.nome), ...(r.alias || []).map(tokens)].filter((t) => t.length) });
+    const names = [r.nome, ...(r.alias || [])];
+    idx.push({ kind: 'recipe', item: r, keys: names.map(tokens).filter((t) => t.length), raw: new Set(names.map((n) => rawTokens(n).join(' '))) });
   }
   return (_matchIndex = idx);
 }
@@ -354,11 +364,17 @@ function matchIndex() {
 function findCandidates(query) {
   const q = tokens(query);
   if (!q.length) return [];
+  const qRaw = rawTokens(query).join(' ');
   const out = [];
   for (const e of matchIndex()) {
+    // Corrispondenza letterale con nome o alias: vince su qualsiasi somiglianza.
+    if (e.raw.has(qRaw)) {
+      out.push({ ...e, score: 1.01, exact: true });
+      continue;
+    }
     let s = 0;
     for (const k of e.keys) s = Math.max(s, phraseScore(q, k));
-    if (s > 0.3) out.push({ ...e, score: s });
+    if (s > 0.3) out.push({ ...e, score: Math.min(s, 1) });
   }
   out.sort((x, y) => y.score - x.score || (x.kind === 'food' ? -1 : 1) || x.item.nome.localeCompare(y.item.nome));
   return out;
@@ -372,6 +388,10 @@ function extractQty(seg) {
   for (let i = 0; i < toks.length; i++) {
     const t = toks[i];
     let n = null;
+    if (/^\d+([.,]\d+)?%$/.test(t) || /^0+$/.test(t)) {
+      rest.push(t);
+      continue;
+    }
     if (/^\d+([.,]\d+)?$/.test(t)) n = parseFloat(t.replace(',', '.'));
     else if (/^\d+\/\d+$/.test(t)) {
       const [a, b] = t.split('/').map(Number);
@@ -393,7 +413,7 @@ function extractQty(seg) {
       i = j - 1;
       continue;
     }
-    if (UNIT_WORDS[t] && !['noce', 'filo'].includes(UNIT_WORDS[t]) && qty.length === 0) {
+    if (UNIT_WORDS[t] && !['noce', 'filo'].includes(UNIT_WORDS[t]) && qty.length === 0 && /^(di|d|de|del|dello|della|dell|dei|delle)$/.test(toks[i + 1] || '')) {
       // "cucchiaio di olio" senza numero → 1 cucchiaio
       qty.push({ n: 1, unit: UNIT_WORDS[t] });
       continue;
@@ -407,7 +427,7 @@ function extractQty(seg) {
   return { qty, query: rest.join(' ') };
 }
 
-const PLURALI = { cucchiaio: 'cucchiai', cucchiaino: 'cucchiaini', fetta: 'fette', porzione: 'porzioni', pezzo: 'pezzi', vasetto: 'vasetti', scatoletta: 'scatolette', manciata: 'manciate', tazza: 'tazze', bicchiere: 'bicchieri', confezione: 'confezioni', quadratino: 'quadratini', misurino: 'misurini' };
+const PLURALI = { cucchiaio: 'cucchiai', cucchiaino: 'cucchiaini', fetta: 'fette', porzione: 'porzioni', pezzo: 'pezzi', vasetto: 'vasetti', scatoletta: 'scatolette', manciata: 'manciate', tazza: 'tazze', bicchiere: 'bicchieri', confezione: 'confezioni', quadratino: 'quadratini', misurino: 'misurini', bustina: 'bustine', pizzico: 'pizzichi', tazzina: 'tazzine', bottiglia: 'bottiglie', lattina: 'lattine', calice: 'calici', bicchierino: 'bicchierini', pinta: 'pinte', pallina: 'palline' };
 
 function unitGrams(food, unit) {
   if (unit === 'porzione') return food.porz;
@@ -433,7 +453,7 @@ function resolveGrams(entry, qty) {
     return { g: q.n * unitGrams(target, q.unit), nota: `${fmt(q.n, q.n % 1 ? 1 : 0)} ${q.n > 1 ? PLURALI[q.unit] || q.unit : q.unit}` };
   }
   // numero senza unità
-  if (q.n >= 15) return { g: q.n, nota: '' };
+  if (q.n >= 15 || (!pezzo && q.n >= 5)) return { g: q.n, nota: '' };
   if (pezzo) return { g: q.n * pezzo, nota: `${fmt(q.n, q.n % 1 ? 1 : 0)} × ${fmt(pezzo)} g` };
   return { g: q.n * target.porz, nota: `${fmt(q.n, q.n % 1 ? 1 : 0)} porzioni?`, dubbio: true };
 }
@@ -469,7 +489,9 @@ function parseInput(text) {
       row.cands = cands.filter((c) => c.score >= 0.35).slice(0, 4);
     } else {
       const second = cands.find((c) => c.item.id !== best.item.id);
-      const confident = best.score >= 0.8 && (!second || best.score - second.score >= 0.12);
+      const confident = best.exact
+        ? !second || !second.exact
+        : (best.score >= 0.8 && (!second || best.score - second.score >= 0.08)) || (best.score >= 0.7 && (!second || second.score < best.score - 0.3));
       if (confident) {
         row.pick = best;
       } else {
@@ -537,7 +559,8 @@ function dinnerOptions(k) {
   const rules = ruleStatus(week, k);
   const daysLeft = 7 - Math.round((parseKey(k) - parseKey(week)) / 864e5);
   const proteine = foods.filter((a) => a.p >= 15 && (a.tag.some((t) => ['pesce', 'carne-bianca', 'carne-rossa'].includes(t)) || a.id === 'uova') && a.cn < 5);
-  const verdure = foods.filter((a) => a.tag.includes('verdura'));
+  const NON_CONTORNI = new Set(['passata', 'minestrone', 'parmigiana', 'cipolla', 'porri', 'sedano', 'crauti', 'germogli', 'ravanelli']);
+  const verdure = foods.filter((a) => a.tag.includes('verdura') && !a.tag.includes('processato') && !a.tag.includes('latticino') && !NON_CONTORNI.has(a.id));
   const olio = foods.find((a) => a.id === 'olio-evo') || foods.find((a) => a.tag.includes('grasso') && a.p < 1);
 
   const combos = [];
