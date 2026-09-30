@@ -7,7 +7,7 @@
    ================================================================ */
 
 const LS_KEY = 'crumb:v1';
-const APP_VERSION = 11; // da allineare con ?v= in index.html e CACHE in sw.js
+const APP_VERSION = 12; // da allineare con ?v= in index.html e CACHE in sw.js
 const PASTI = [
   { id: 'colazione', nome: 'Colazione' },
   { id: 'pranzo', nome: 'Pranzo' },
@@ -353,6 +353,42 @@ function weightMA(k) {
   }
   return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
 }
+// Fabbisogno misurato dai dati: kcal medie mangiate + calo della media mobile del peso × 7.700 / giorni.
+// Finestra: ultimi 28 giorni fino a ieri (oggi solo se la giornata è già piena).
+const MISURA = { giorni: 28, minPasti: 14, minPesate: 8 };
+function misuraFabbisogno(endKey = todayKey()) {
+  const st = S.settings;
+  const end = dayHasData(endKey) && dayTotals(endKey).kcal >= st.kcalSoglia ? endKey : addDays(endKey, -1);
+  const start = addDays(end, -(MISURA.giorni - 1));
+  const giorni = [...Array(MISURA.giorni)].map((_, i) => addDays(start, i));
+  const pasti = giorni.filter(dayHasData);
+  const pesate = giorni.filter((k) => S.pesi[k] != null).length;
+  const esito = { pasti: pasti.length, pesate, giorni: MISURA.giorni };
+  if (pasti.length < MISURA.minPasti || pesate < MISURA.minPesate) return { ...esito, ok: false };
+  const maStart = weightMA(start), maEnd = weightMA(end);
+  if (maStart == null || maEnd == null) return { ...esito, ok: false };
+  const kcal = pasti.reduce((a, k) => a + dayTotals(k).kcal, 0) / pasti.length;
+  const delta = maEnd - maStart;
+  const span = MISURA.giorni - 1;
+  const tdee = kcal - (delta * 7700) / span;
+  const plausibile = tdee >= 1200 && tdee <= 5000;
+  return { ...esito, ok: plausibile, kcal, delta, tdee: Math.round(tdee / 10) * 10, implausibile: !plausibile };
+}
+function misuraHtml() {
+  const m = misuraFabbisogno();
+  const st = S.settings;
+  if (!m.ok) {
+    return `<p class="small muted num">${m.implausibile
+      ? `Fabbisogno misurato fuori scala (${fmt(m.tdee)} kcal): probabilmente mancano delle registrazioni.`
+      : `Fabbisogno misurato: servono almeno ${MISURA.minPasti} giorni con pasti e ${MISURA.minPesate} pesate negli ultimi ${MISURA.giorni}. Ora: ${m.pasti} giorni e ${m.pesate} pesate.`}</p>`;
+  }
+  const diff = m.tdee - st.fabbisogno;
+  return `<div class="misura"><div class="row"><div style="flex:1"><b class="num">Fabbisogno misurato: ${fmt(m.tdee)} kcal</b>
+    <div class="small muted num">impostato ${fmt(st.fabbisogno)} (${diff >= 0 ? '+' : '−'}${fmt(Math.abs(diff))}) · ${m.pasti} giorni, media ${fmt(m.kcal)} kcal, peso ${m.delta <= 0 ? '−' : '+'}${fmt(Math.abs(m.delta), 1)} kg</div></div>
+    ${Math.abs(diff) >= 10 ? '<button class="btn sm" data-act="usa-fabbisogno">Usa</button>' : ''}</div>
+    <div class="small muted">Se salti delle registrazioni il valore esce più basso del reale.</div></div>`;
+}
+
 function latestWeightKey(until = todayKey()) {
   const keys = Object.keys(S.pesi).filter((k) => k <= until).sort();
   return keys[keys.length - 1] || null;
@@ -2053,7 +2089,8 @@ function viewSettimana() {
     h += `<section class="card"><h2>Bilancio energetico</h2><div class="kv">
       <div><b class="num">${def ? '−' : '+'}${fmt(Math.abs(ws.deficit))}</b><span>kcal ${def ? 'di deficit' : 'di surplus'} in ${ws.n} giorni, su fabbisogno ${fmt(st.fabbisogno)}</span></div>
       <div><b class="num">${def ? '−' : '+'}${fmt(Math.abs(ws.grasso), 2)} kg</b><span>grasso stimato (deficit ÷ 7.700)</span></div>
-    </div><p class="small muted num" style="margin:10px 0 0">Giorni sotto ${fmt(st.kcalSoglia)} kcal: ${ws.sotto}</p></section>`;
+    </div><p class="small muted num" style="margin:10px 0 0">Giorni sotto ${fmt(st.kcalSoglia)} kcal: ${ws.sotto}</p>
+    <div style="margin-top:12px">${misuraHtml()}</div></section>`;
   }
 
   const rs = ruleStatus(end);
@@ -2109,7 +2146,8 @@ function viewImpostazioni() {
   <details class="sec" open><summary>Dati personali</summary><div class="body">
     <div class="grid2">${field('altezza', 'Altezza', st.altezza, 'cm')}${field('peso', 'Peso attuale', st.peso ?? (last ? S.pesi[last] : ''), 'kg')}</div>
     ${field('fabbisogno', 'Fabbisogno calorico stimato', st.fabbisogno, 'kcal')}
-    ${st.peso || last ? `<p class="small muted num">Deficit al centro del target: ${fmt(st.fabbisogno - (st.kcalMin + st.kcalMax) / 2)} kcal/giorno</p>` : ''}
+    ${misuraHtml()}
+    <p class="small muted num">Deficit al centro del target: ${fmt(st.fabbisogno - (st.kcalMin + st.kcalMax) / 2)} kcal/giorno</p>
   </div></details>
 
   <details class="sec"><summary>Target giornalieri</summary><div class="body">
@@ -2410,6 +2448,15 @@ function bindView(main) {
       case 'save-preset': return savePreset(t.dataset.pasto);
       case 'export-day': return copyText(exportDay(ui.day));
       case 'export-week': return copyText(exportWeek(ui.weekEnd));
+      case 'usa-fabbisogno': {
+        const m = misuraFabbisogno();
+        if (!m.ok) return;
+        const prima = S.settings.fabbisogno;
+        S.settings.fabbisogno = m.tdee;
+        save();
+        render();
+        return toast(`Fabbisogno: ${fmt(prima)} → ${fmt(m.tdee)} kcal`, 'Annulla', () => { S.settings.fabbisogno = prima; save(); render(); });
+      }
       case 'export-json': return exportJSON();
       case 'import-json': return $('#importFile').click();
       case 'food-new': return openFoodEditor(null);
@@ -2502,4 +2549,4 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 render();
 
 // Esposto per i test in console / headless.
-window.CRUMB = { analyzeRecipe, inCasa, dispensaAdd, parseInput, voto, stasera, dailyTip, weekStats, ruleStatus, recipeTags, recipePortion, weightMA, findCandidates, exportDay, exportWeek, get state() { return S; } };
+window.CRUMB = { misuraFabbisogno, analyzeRecipe, inCasa, dispensaAdd, parseInput, voto, stasera, dailyTip, weekStats, ruleStatus, recipeTags, recipePortion, weightMA, findCandidates, exportDay, exportWeek, get state() { return S; } };
