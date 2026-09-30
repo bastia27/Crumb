@@ -7,6 +7,7 @@
    ================================================================ */
 
 const LS_KEY = 'crumb:v1';
+const APP_VERSION = 11; // da allineare con ?v= in index.html e CACHE in sw.js
 const PASTI = [
   { id: 'colazione', nome: 'Colazione' },
   { id: 'pranzo', nome: 'Pranzo' },
@@ -2169,7 +2170,7 @@ function viewImpostazioni() {
     <button class="btn danger block" data-act="reset" style="margin-top:10px">Cancella tutti i dati</button>
   </div></details>
 
-  <p class="small muted center" style="margin-top:20px">CRUMB · offline, senza account, senza rete.<br>Ogni numero è calcolato sul dispositivo.</p>`;
+  <p class="small muted center" style="margin-top:20px">CRUMB versione ${APP_VERSION} · ${allFoods().length} alimenti · ${allRecipes().length} ricette<br>Offline, senza account. Ogni numero è calcolato sul dispositivo.</p>`;
 }
 
 function foodListHtml(q) {
