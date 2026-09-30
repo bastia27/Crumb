@@ -32,14 +32,18 @@ const DEFAULT_SETTINGS = {
   fibraBassa: 15,
   fibraAlta: 35,
   sodioMax: 3000,
+  // Regole settimanali (ultimi 7 giorni). "@colazione" = giorni con colazione registrata.
   regole: [
     { tag: 'pesce', tipo: 'min', n: 3 },
     { tag: 'pesce-azzurro', tipo: 'min', n: 2 },
-    { tag: 'carne-rossa', tipo: 'max', n: 3 },
-    { tag: 'processato', tipo: 'max', n: 3 },
-    { tag: 'verdura', tipo: 'min', n: 10 },
+    { tag: 'legume', tipo: 'min', n: 3 },
+    { tag: 'carne-rossa', tipo: 'max', n: 1 },
+    { tag: 'processato', tipo: 'max', n: 2 },
+    { tag: '@colazione', tipo: 'min', n: 5 },
   ],
 };
+// Default della prima versione: se l'utente non li ha toccati, passano ai nuovi.
+const REGOLE_V1 = '[{"tag":"pesce","tipo":"min","n":3},{"tag":"pesce-azzurro","tipo":"min","n":2},{"tag":"carne-rossa","tipo":"max","n":3},{"tag":"processato","tipo":"max","n":3},{"tag":"verdura","tipo":"min","n":10}]';
 
 function emptyState() {
   return {
@@ -73,7 +77,7 @@ function migrate(data) {
   const base = emptyState();
   const s = Object.assign(base, data || {});
   s.settings = Object.assign(structuredClone(DEFAULT_SETTINGS), s.settings || {});
-  if (!Array.isArray(s.settings.regole)) s.settings.regole = structuredClone(DEFAULT_SETTINGS.regole);
+  if (!Array.isArray(s.settings.regole) || JSON.stringify(s.settings.regole) === REGOLE_V1) s.settings.regole = structuredClone(DEFAULT_SETTINGS.regole);
   return s;
 }
 
@@ -298,19 +302,6 @@ function voto(t, st = S.settings) {
   return { v, pen, tetto };
 }
 const votoClass = (v) => (v >= 8 ? 'v-good' : v >= 6 ? 'v-mid' : 'v-bad');
-
-// Conteggio settimanale per tag: numero di pasti che contengono almeno una voce col tag.
-function weekCount(startKey, tag, untilKey = null) {
-  let n = 0;
-  for (let i = 0; i < 7; i++) {
-    const k = addDays(startKey, i);
-    if (untilKey && k > untilKey) break;
-    const d = S.giorni[k];
-    if (!d) continue;
-    for (const p of PASTI) if ((d.pasti[p.id] || []).some((v) => (v.tag || []).includes(tag))) n++;
-  }
-  return n;
-}
 
 // Media mobile a 7 giorni del peso (media delle pesate disponibili nella finestra).
 function weightMA(k) {
@@ -566,12 +557,24 @@ function parseInput(text) {
   return rows;
 }
 
-function rowToVoce(row) {
+function rowToVoci(row) {
   const e = row.pick;
-  if (!e || !row.g) return null;
-  const v = e.kind === 'recipe' ? makeVoceRicetta(e.item, row.g) : makeVoce(e.item, row.g);
+  if (!e || !row.g) return [];
+  if (e.kind === 'recipe') {
+    const r = e.item;
+    const f = row.g / recipeInfo(r).pesoTot;
+    return r.ingredienti.map((ing) => {
+      const a = foodById(ing.fid);
+      if (!a) return null;
+      const v = makeVoce(a, ing.g * f);
+      v.from = r.nome;
+      if (row.inc) v.inc = row.inc;
+      return v;
+    }).filter(Boolean);
+  }
+  const v = makeVoce(e.item, row.g);
   if (row.inc) v.inc = row.inc;
-  return v;
+  return [v];
 }
 
 /* ================================================================
@@ -583,169 +586,193 @@ function remaining(k) {
   const t = dayTotals(k);
   return {
     t,
-    kcal: (st.kcalMin + st.kcalMax) / 2 - t.kcal,
     kcalMin: st.kcalMin - t.kcal,
-    p: (st.protMin + st.protMax) / 2 - t.p,
+    kcalMax: st.kcalMax - t.kcal,
     pMin: st.protMin - t.p,
     cn: st.carboMax - t.cn,
-    f: st.fibraMin - t.f,
-    na: st.sodioMax - t.na,
   };
 }
 
-function ruleStatus(startKey, untilKey = null) {
+// Le ultime 7 date che finiscono in endKey (incluso).
+function last7(endKey) {
+  return [...Array(7)].map((_, i) => addDays(endKey, i - 6));
+}
+
+// Regole settimanali sugli ultimi 7 giorni. "@colazione" conta i giorni con colazione registrata,
+// gli altri tag contano i pasti che contengono almeno un alimento con quel tag.
+function ruleCount(days, tag) {
+  let n = 0;
+  for (const k of days) {
+    const d = S.giorni[k];
+    if (!d) continue;
+    if (tag === '@colazione') {
+      if ((d.pasti.colazione || []).length) n++;
+      continue;
+    }
+    for (const p of PASTI) if ((d.pasti[p.id] || []).some((v) => (v.tag || []).includes(tag))) n++;
+  }
+  return n;
+}
+function ruleStatus(endKey) {
+  const days = last7(endKey);
   return S.settings.regole.map((r) => {
-    const n = weekCount(startKey, r.tag, untilKey);
-    const ok = r.tipo === 'min' ? n >= r.n : n <= r.n;
-    return { ...r, count: n, ok, pieno: r.tipo === 'max' && n >= r.n };
+    const count = ruleCount(days, r.tag);
+    const ok = r.tipo === 'min' ? count >= r.n : count <= r.n;
+    return { ...r, count, ok };
   });
 }
-
-function eatenRecently(fid, k, days = 2) {
-  for (let i = 1; i <= days; i++) {
-    if (dayVoci(S.giorni[addDays(k, -i)]).some((v) => v.fid === fid)) return true;
-  }
-  return dayVoci(S.giorni[k]).some((v) => v.fid === fid);
+const RULE_LABELS = { '@colazione': 'Colazione registrata', pesce: 'Pesce', 'pesce-azzurro': 'Pesce azzurro', legume: 'Legumi', 'carne-rossa': 'Carne rossa', 'carne-bianca': 'Carne bianca', processato: 'Processati', latticino: 'Latticini', verdura: 'Verdura', 'frutta-secca': 'Frutta secca', cereale: 'Cereali', grasso: 'Grassi' };
+const ruleLabel = (tag) => RULE_LABELS[tag] || tagLabel(tag);
+function ruleText(r) {
+  if (r.tag === '@colazione') return `fatto ${r.count} su ${r.n} giorni`;
+  return r.tipo === 'min' ? `fatto ${r.count} su ${r.n}` : `fatto ${r.count}, massimo ${r.n}`;
 }
 
-// "Cosa mangio stasera": combina fonte proteica + verdura + olio per chiudere la giornata.
-function dinnerOptions(k) {
-  const rem = remaining(k);
+// Scarto della media dal target: negativo = sotto, positivo = sopra, 0 = dentro.
+function scarto(avg, min, max) {
+  if (avg == null) return 0;
+  if (min != null && avg < min) return avg - min;
+  if (max != null && avg > max) return avg - max;
+  return 0;
+}
+
+// Statistiche degli ultimi 7 giorni (solo giorni con dati). Con includeToday=false oggi conta
+// solo quando la giornata è piena, per non abbassare le medie la mattina.
+function weekStats(endKey, includeToday = true) {
   const st = S.settings;
-  const foods = allFoods();
-  const week = weekStart(k);
-  const rules = ruleStatus(week, k);
-  const daysLeft = 7 - Math.round((parseKey(k) - parseKey(week)) / 864e5);
-  const proteine = foods.filter((a) => a.p >= 15 && (a.tag.some((t) => ['pesce', 'carne-bianca', 'carne-rossa'].includes(t)) || a.id === 'uova') && a.cn < 5);
-  const NON_CONTORNI = new Set(['passata', 'minestrone', 'parmigiana', 'cipolla', 'porri', 'sedano', 'crauti', 'germogli', 'ravanelli']);
-  const verdure = foods.filter((a) => a.tag.includes('verdura') && !a.tag.includes('processato') && !a.tag.includes('latticino') && !NON_CONTORNI.has(a.id));
-  const olio = foods.find((a) => a.id === 'olio-evo') || foods.find((a) => a.tag.includes('grasso') && a.p < 1);
-
-  const combos = [];
-  const pNeed = Math.max(rem.p, 25);
-  for (const P of proteine) {
-    const maxG = P.id === 'uova' ? 275 : P.tag.includes('processato') ? 120 : 350;
-    const step = P.unita?.pezzo && P.id === 'uova' ? P.unita.pezzo : 10;
-    let gp = clamp(Math.round((pNeed * 100) / P.p / step) * step, P.id === 'uova' ? 110 : 80, maxG);
-    for (const V of verdure) {
-      const gv = V.porz >= 150 ? 200 : 100;
-      const items = [[P, gp], [V, gv]];
-      let tot = sumN(items.map(([a, g]) => nutr(a, g)));
-      if (olio) {
-        const go = clamp(Math.round((rem.kcal - tot.kcal) / 9 / 5) * 5, 0, 20);
-        if (go > 0) {
-          items.push([olio, go]);
-          tot = sumN(items.map(([a, g]) => nutr(a, g)));
-        }
-      }
-      const why = [];
-      let score = 0;
-      score += Math.abs(tot.kcal - rem.kcal) / 100;
-      score += Math.max(0, rem.pMin - tot.p) / 8;
-      score += Math.max(0, tot.cn - Math.max(rem.cn, 0)) * 0.6;
-      score += Math.max(0, rem.f - tot.f) / 4;
-      if (tot.na > rem.na) score += 2.5;
-      if (P.tag.includes('processato')) score += 1.5;
-      if (eatenRecently(P.id, k)) score += 1.2;
-      if (eatenRecently(V.id, k, 1)) score += 0.6;
-      for (const r of rules) {
-        if (!P.tag.includes(r.tag) && !V.tag.includes(r.tag)) continue;
-        if (r.tipo === 'min' && !r.ok) {
-          const bonus = (r.n - r.count) >= daysLeft ? 2.5 : 1.5;
-          score -= bonus;
-          why.push(`${tagLabel(r.tag)}: ${r.count}/${r.n} questa settimana`);
-        }
-        if (r.tipo === 'max' && r.pieno) {
-          score += 4;
-        }
-      }
-      combos.push({ items, tot, score, why, P });
-    }
-  }
-  // ricette come alternative (una porzione)
-  for (const r of allRecipes()) {
-    const info = recipeInfo(r);
-    const tot = info.per && nutrPer(info.per, info.porzG);
-    if (tot.p < 20) continue;
-    let score = Math.abs(tot.kcal - rem.kcal) / 100 + Math.max(0, rem.pMin - tot.p) / 8 + Math.max(0, tot.cn - Math.max(rem.cn, 0)) * 0.6 + Math.max(0, rem.f - tot.f) / 4 + 0.3;
-    if (tot.na > rem.na) score += 2.5;
-    const why = [];
-    for (const rs of rules) {
-      if (!info.tag.includes(rs.tag)) continue;
-      if (rs.tipo === 'min' && !rs.ok) { score -= 1.5; why.push(`${tagLabel(rs.tag)}: ${rs.count}/${rs.n} questa settimana`); }
-      if (rs.tipo === 'max' && rs.pieno) score += 4;
-    }
-    combos.push({ recipe: r, g: info.porzG, tot, score, why, P: { id: r.id } });
-  }
-  combos.sort((a, b) => a.score - b.score || (a.recipe?.nome || a.items[0][0].nome).localeCompare(b.recipe?.nome || b.items[0][0].nome));
-  const seen = new Set();
-  const out = [];
-  for (const c of combos) {
-    if (seen.has(c.P.id)) continue;
-    seen.add(c.P.id);
-    out.push(c);
-    if (out.length === 3) break;
-  }
-  return { rem, options: out };
+  const days = last7(endKey).filter((k) => dayHasData(k) && (includeToday || k !== todayKey() || dayTotals(k).kcal >= st.kcalSoglia));
+  const tots = days.map(dayTotals);
+  const n = days.length;
+  const avg = (key) => (n ? tots.reduce((a, t) => a + t[key], 0) / n : null);
+  const a = { kcal: avg('kcal'), p: avg('p'), cn: avg('cn'), f: avg('f'), na: avg('na') };
+  const deficit = tots.reduce((s, t) => s + (st.fabbisogno - t.kcal), 0);
+  const ma = weightMA(endKey), maPrev = weightMA(addDays(endKey, -7));
+  return {
+    days, tots, n, avg: a,
+    voto: n ? tots.reduce((s, t) => s + voto(t).v, 0) / n : null,
+    scarti: {
+      kcal: scarto(a.kcal, st.kcalMin, st.kcalMax),
+      p: scarto(a.p, st.protMin, null),
+      cn: scarto(a.cn, null, st.carboMax),
+      f: scarto(a.f, st.fibraMin, st.fibraMax),
+    },
+    deficit,
+    grasso: deficit / 7700,
+    sotto: tots.filter((t) => t.kcal < st.kcalSoglia).length,
+    ma, maPrev, maDelta: ma != null && maPrev != null ? ma - maPrev : null,
+  };
 }
+
+/* ——— Ricette: porzione, tag calcolati ——— */
+
+const RICETTA_SOGLIE = { proteico: 35, fibraAlta: 8, sodioBasso: 300, veloce: 15 };
+const RECIPE_TAGS = ['proteico', 'fibra-alta', 'sodio-basso', 'pesce-azzurro', 'legumi', 'veloce', 'batch', 'senza-cottura'];
+
+function recipePortion(r) {
+  const info = recipeInfo(r);
+  return nutrPer(info.per, info.porzG);
+}
+function recipeTags(r) {
+  const n = recipePortion(r);
+  const tags = new Set(r.tag || []);
+  if (n.p > RICETTA_SOGLIE.proteico) tags.add('proteico');
+  if (n.f >= RICETTA_SOGLIE.fibraAlta) tags.add('fibra-alta');
+  if (n.na <= RICETTA_SOGLIE.sodioBasso) tags.add('sodio-basso');
+  if (r.tempo && r.tempo < RICETTA_SOGLIE.veloce) tags.add('veloce');
+  for (const ing of r.ingredienti) {
+    const a = foodById(ing.fid);
+    if (!a) continue;
+    if (a.tag.includes('pesce-azzurro')) tags.add('pesce-azzurro');
+    if (a.tag.includes('legume')) tags.add('legumi');
+  }
+  return RECIPE_TAGS.filter((t) => tags.has(t));
+}
+// Una ricetta "contiene" un tag alimento se almeno un ingrediente lo ha.
+function recipeHasFoodTag(r, tag) {
+  return r.ingredienti.some((ing) => (foodById(ing.fid)?.tag || []).includes(tag));
+}
+
+// "Cosa mangio stasera": filtro sulle ricette che stanno nel residuo di kcal,
+// ordinate per quanto colmano il gap proteico.
+function stasera(k) {
+  const rem = remaining(k);
+  const gap = Math.max(0, rem.pMin);
+  const list = allRecipes()
+    .map((r) => ({ r, n: recipePortion(r) }))
+    .filter((x) => x.n.kcal <= rem.kcalMax)
+    .sort((a, b) => {
+      if (gap > 0) {
+        const ca = Math.min(a.n.p, gap), cb = Math.min(b.n.p, gap);
+        if (Math.abs(ca - cb) > 0.5) return cb - ca;
+      }
+      return a.n.kcal - b.n.kcal || a.r.nome.localeCompare(b.r.nome);
+    });
+  return { rem, gap, list };
+}
+
+// Suggerimento proattivo: un solo gap, nell'ordine di priorità della specifica, con 2-3 ricette.
+function dailyTip(k) {
+  const st = S.settings;
+  const ws = weekStats(k, false);
+  const rem = remaining(k);
+  const fits = (x) => rem.kcalMax < 300 || x.n.kcal <= rem.kcalMax;
+  const pool = allRecipes().map((r) => ({ r, n: recipePortion(r), tags: recipeTags(r) }));
+  const pick = (filter, sort) => pool.filter((x) => filter(x) && fits(x)).sort(sort).slice(0, 3).map((x) => x.r);
+  const byP = (a, b) => b.n.p - a.n.p;
+
+  if (!ws.n && !dayHasData(k)) {
+    return { text: 'Nessun giorno registrato. Scrivi cosa hai mangiato, anche tutto insieme: «pollo 300, 3 uova, cicoria 200».', recipes: [] };
+  }
+  // 1. proteine sotto il 90% del target
+  if (ws.n && ws.avg.p < st.protMin * 0.9) {
+    return {
+      text: `Proteine: media ${fmt(ws.avg.p)} g negli ultimi ${ws.n} giorni, ${fmt(st.protMin - ws.avg.p)} g al giorno sotto il minimo.`,
+      recipes: pick((x) => x.tags.includes('proteico'), byP),
+    };
+  }
+  // 2. regola settimanale non rispettata (quella con lo scarto relativo più grande)
+  const broken = ruleStatus(k).filter((r) => !r.ok)
+    .map((r) => ({ ...r, gap: r.tipo === 'min' ? (r.n - r.count) / Math.max(r.n, 1) : (r.count - r.n) / Math.max(r.n, 1) }))
+    .sort((a, b) => b.gap - a.gap);
+  if (broken.length) {
+    const r = broken[0];
+    if (r.tag === '@colazione') {
+      return { text: `Colazione registrata ${r.count} giorni su 7, l'obiettivo è ${r.n}.`, recipes: pick((x) => x.tags.includes('veloce'), byP) };
+    }
+    if (r.tipo === 'min') {
+      return {
+        text: `${ruleLabel(r.tag)}: ${r.count} volte negli ultimi 7 giorni, l'obiettivo è almeno ${r.n}.`,
+        recipes: pick((x) => recipeHasFoodTag(x.r, r.tag), byP),
+      };
+    }
+    return {
+      text: `${ruleLabel(r.tag)}: ${r.count} volte negli ultimi 7 giorni, il massimo è ${r.n}. Nei prossimi pasti niente.`,
+      recipes: pick((x) => !recipeHasFoodTag(x.r, r.tag) && x.tags.includes('proteico'), byP),
+    };
+  }
+  // 3. fibra media sotto la soglia bassa
+  if (ws.n && ws.avg.f < st.fibraBassa) {
+    return {
+      text: `Fibra: media ${fmt(ws.avg.f)} g negli ultimi ${ws.n} giorni, sotto i ${fmt(st.fibraBassa)} g.`,
+      recipes: pick((x) => x.tags.includes('fibra-alta'), (a, b) => b.n.f - a.n.f),
+    };
+  }
+  // 4. tre o più giorni sotto la soglia kcal
+  if (ws.sotto >= 3) {
+    return {
+      text: `${ws.sotto} giorni su ${ws.n} sotto ${fmt(st.kcalSoglia)} kcal: mangiare troppo poco è un errore.`,
+      recipes: pick((x) => x.tags.includes('batch'), (a, b) => b.n.kcal - a.n.kcal),
+    };
+  }
+  return { text: `Nessun gap negli ultimi ${ws.n || 1} giorni: voto medio ${fmt(ws.voto ?? voto(dayTotals(k)).v, 1)}.`, recipes: [] };
+}
+
 function nutr(a, g) {
   return nutrPer(a, g);
 }
 function nutrPer(per, g) {
   const k = g / 100;
   return { kcal: per.kcal * k, p: per.p * k, cn: per.cn * k, f: per.f * k, na: per.na * k };
-}
-
-// Suggerimento proattivo del giorno: la prima regola applicabile, in ordine di priorità.
-function dailyTip(k) {
-  const st = S.settings;
-  const t = dayTotals(k);
-  const ieri = addDays(k, -1);
-  const isToday = k === todayKey();
-  const hour = isToday ? new Date().getHours() : 23;
-  const week = weekStart(k);
-  const rules = ruleStatus(week, k);
-  const daysLeft = 7 - Math.round((parseKey(k) - parseKey(week)) / 864e5);
-  const tips = [];
-
-  if (dayHasData(ieri)) {
-    const ty = dayTotals(ieri);
-    if (ty.na > st.sodioMax) tips.push([90, `Ieri il sodio stimato era ${fmt(ty.na)} mg. Oggi limita salumi, formaggi stagionati e salmone affumicato.`]);
-  }
-  if (t.na > st.sodioMax * 0.8 && t.na <= st.sodioMax) tips.push([85, `Sodio già a ${fmt(t.na)} mg su ${fmt(st.sodioMax)}: per il resto del giorno niente processati.`]);
-  if (t.cn > st.carboMax * 0.8) tips.push([80, `Carbo netti a ${fmt(t.cn)} / ${fmt(st.carboMax)} g: da qui in poi proteine e verdure a foglia.`]);
-  for (const r of rules) {
-    if (r.tipo === 'min' && !r.ok && r.n - r.count >= daysLeft - 1 && r.tag !== 'verdura') {
-      tips.push([75, `Questa settimana ${tagLabel(r.tag).toLowerCase()} ${r.count}/${r.n} e restano ${daysLeft} giorni: mettilo in uno dei prossimi pasti.`]);
-    }
-    if (r.tipo === 'max' && r.pieno) tips.push([70, `${tagLabel(r.tag)} già a ${r.count}/${r.n} questa settimana: oggi scegli altro.`]);
-  }
-  if (hour >= 14 && t.p < st.protMin * 0.5) tips.push([65, `Sei a ${fmt(t.p)} g di proteine su ${fmt(st.protMin)}: nei prossimi pasti ne servono circa ${fmt(st.protMin - t.p)} g.`]);
-  if (hour >= 15 && t.f < st.fibraMin * 0.5) tips.push([60, `Fibra a ${fmt(t.f)} g: 250 g di cicoria o spinaci ne aggiungono 5–10 g con pochi carbo.`]);
-
-  // Tendenza del peso: media 7 gg oggi contro 7 giorni fa.
-  const ma = weightMA(k), maPrev = weightMA(addDays(k, -7));
-  if (ma != null && maPrev != null) {
-    const delta = ma - maPrev;
-    if (delta < -1) tips.push([55, `La media del peso è scesa di ${fmt(-delta, 1)} kg in 7 giorni: più di 1 kg/settimana. Valuta di stare verso il limite alto delle calorie.`]);
-  }
-
-  // Punto debole ricorrente negli ultimi 7 giorni con dati.
-  const pens = {};
-  let n = 0;
-  for (let i = 1; i <= 7; i++) {
-    const kk = addDays(k, -i);
-    if (!dayHasData(kk)) continue;
-    n++;
-    for (const [txt] of voto(dayTotals(kk)).pen) pens[txt] = (pens[txt] || 0) + 1;
-  }
-  const top = Object.entries(pens).sort((a, b) => b[1] - a[1])[0];
-  if (top && top[1] >= 3) tips.push([50, `Negli ultimi ${n} giorni registrati il punto debole più frequente è stato: ${top[0].toLowerCase()} (${top[1]} volte).`]);
-
-  if (!dayHasData(k)) tips.push([10, isToday ? 'Giornata vuota. Scrivi cosa hai mangiato, anche tutto insieme: "pollo 300, 3 uova, cicoria 200".' : 'Nessun dato per questo giorno.']);
-  else tips.push([5, `Ti restano ${fmt(Math.max(0, st.protMin - t.p))} g di proteine e ${fmt(Math.max(0, st.kcalMin - t.kcal))} kcal per il minimo.`]);
-  tips.sort((a, b) => b[0] - a[0]);
-  return tips[0][1];
 }
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const tagLabel = (t) => cap(t.replace(/-/g, ' '));
@@ -754,39 +781,68 @@ const tagLabel = (t) => cap(t.replace(/-/g, ' '));
    EXPORT TESTUALE (per analisi esterna)
    ================================================================ */
 
-function exportText(fromKey, toKey) {
+function vociLine(voci) {
+  return voci.map((v) => `${v.nome} ${v.inc ? '~' : ''}${fmt(v.g)} g`).join(', ');
+}
+function targetLine() {
   const st = S.settings;
-  const L = [];
-  L.push(`# Dati CRUMB — dal ${fromKey} al ${toKey}`);
-  L.push('');
-  L.push(`Profilo: altezza ${st.altezza} cm, fabbisogno stimato ${st.fabbisogno} kcal${st.peso ? `, peso ${st.peso} kg` : ''}.`);
-  L.push(`Target: ${st.kcalMin}–${st.kcalMax} kcal, proteine ${st.protMin}–${st.protMax} g, carbo netti max ${st.carboMax} g, fibra ${st.fibraMin}–${st.fibraMax} g, sodio max ${st.sodioMax} mg.`);
-  L.push('Valori stimati da database locale; carbo netti = carboidrati totali − fibra.');
-  L.push('');
-  for (let k = fromKey; k <= toKey; k = addDays(k, 1)) {
-    const d = S.giorni[k];
-    const w = S.pesi[k];
-    if (!dayHasData(k) && w == null) continue;
-    const t = dayTotals(k);
-    const vv = dayHasData(k) ? voto(t) : null;
-    L.push(`## ${labelDay(k, false)} (${k})`);
-    if (w != null) L.push(`Peso: ${fmt(w, 1)} kg · media 7 gg ${fmt(weightMA(k), 1)} kg`);
-    if (vv) {
-      L.push(`Totale: ${r0(t.kcal)} kcal · P ${r0(t.p)} g · C netti ${r0(t.cn)} g · fibra ${r0(t.f)} g · sodio ${r0(t.na)} mg · voto ${vv.v}/10`);
-      for (const p of PASTI) {
-        const voci = d.pasti[p.id] || [];
-        if (!voci.length) continue;
-        L.push(`- ${p.nome}: ${voci.map((v) => `${v.nome} ${v.g} g`).join(', ')}`);
-      }
-    }
-    L.push('');
+  return `Target: ${fmt(st.kcalMin)}–${fmt(st.kcalMax)} kcal · proteine ${st.protMin}–${st.protMax} g · carbo netti max ${st.carboMax} g · fibra ${st.fibraMin}–${st.fibraMax} g`;
+}
+function pesoLine(k) {
+  const w = S.pesi[k], ma = weightMA(k), prev = weightMA(addDays(k, -7));
+  if (ma == null) return null;
+  const delta = prev != null ? ` (${ma - prev <= 0 ? '−' : '+'}${fmt(Math.abs(ma - prev), 1)} kg rispetto a 7 giorni prima)` : '';
+  return `Peso: ${w != null ? `${fmt(w, 1)} kg · ` : ''}media 7 gg ${fmt(ma, 1)} kg${delta}`;
+}
+
+// "Copia giornata": riassunto compatto da incollare in una chat esterna.
+function exportDay(k) {
+  const d = S.giorni[k];
+  const t = dayTotals(k);
+  const L = [`CRUMB · ${labelDay(k, false)} ${parseKey(k).getFullYear()}`];
+  for (const p of PASTI) {
+    const voci = d?.pasti[p.id] || [];
+    if (voci.length) L.push(`${p.nome}: ${vociLine(voci)}`);
   }
-  const rs = ruleStatus(weekStart(toKey), toKey);
-  if (rs.length) {
-    L.push(`Regole settimanali (settimana del ${weekStart(toKey)}): ` + rs.map((r) => `${r.tag} ${r.count} (${r.tipo === 'min' ? 'almeno' : 'al massimo'} ${r.n})`).join('; ') + '.');
-  }
+  if (dayHasData(k)) {
+    const kr = kcalRange(dayVoci(d));
+    const vv = voto(t);
+    L.push(`Totale: ${fmt(t.kcal)} kcal${kr.unc ? ` (stima ${fmtRange(kr)})` : ''} · P ${fmt(t.p)} g · C netti ${fmt(t.cn)} g · fibra ${fmt(t.f)} g · sodio ${fmt(t.na)} mg`);
+    L.push(`Voto: ${vv.v}/10${vv.pen.length ? ` (${vv.pen.map(([x, n]) => `${x.toLowerCase()} −${n}`).join('; ')})` : ''}`);
+  } else L.push('Nessun alimento registrato.');
+  const pl = pesoLine(k);
+  if (pl) L.push(pl);
+  L.push(targetLine());
   return L.join('\n');
 }
+
+// "Copia settimana": ultimi 7 giorni fino a endKey.
+function exportWeek(endKey) {
+  const st = S.settings;
+  const ws = weekStats(endKey, false);
+  const days = last7(endKey);
+  const L = [`CRUMB · 7 giorni dal ${labelDay(days[0], false)} al ${labelDay(endKey, false)} ${parseKey(endKey).getFullYear()}`];
+  for (const k of days) {
+    const w = S.pesi[k];
+    if (!dayHasData(k)) {
+      if (w != null) L.push(`${labelDay(k, false)} · nessun pasto · peso ${fmt(w, 1)} kg`);
+      continue;
+    }
+    const t = dayTotals(k);
+    L.push(`${labelDay(k, false)} · ${fmt(t.kcal)} kcal · P ${fmt(t.p)} · C ${fmt(t.cn)} · F ${fmt(t.f)} · voto ${voto(t).v}${w != null ? ` · peso ${fmt(w, 1)}` : ''}`);
+    L.push(`  ${vociLine(dayVoci(S.giorni[k]))}`);
+  }
+  if (ws.n) {
+    L.push(`Medie (${ws.n} giorni${ws.days.includes(endKey) || !dayHasData(endKey) ? '' : ', oggi escluso perché incompleto'}): ${fmt(ws.avg.kcal)} kcal (${fmtScarto(ws.scarti.kcal, 'kcal')}) · P ${fmt(ws.avg.p)} g (${fmtScarto(ws.scarti.p, 'g')}) · C netti ${fmt(ws.avg.cn)} g (${fmtScarto(ws.scarti.cn, 'g')}) · fibra ${fmt(ws.avg.f)} g (${fmtScarto(ws.scarti.f, 'g')})`);
+    L.push(`${ws.deficit >= 0 ? 'Deficit' : 'Surplus'} cumulativo: ${fmt(Math.abs(ws.deficit))} kcal su fabbisogno ${fmt(st.fabbisogno)} · grasso stimato ${ws.deficit >= 0 ? '−' : '+'}${fmt(Math.abs(ws.grasso), 2)} kg`);
+    L.push(`Giorni sotto ${fmt(st.kcalSoglia)} kcal: ${ws.sotto}`);
+  }
+  L.push(`Regole: ${ruleStatus(endKey).map((r) => `${ruleLabel(r.tag).toLowerCase()} ${ruleText(r)} ${r.ok ? '✓' : '✗'}`).join('; ')}`);
+  if (ws.maDelta != null) L.push(`Media mobile peso: ${fmt(ws.ma, 1)} kg (${ws.maDelta <= 0 ? '−' : '+'}${fmt(Math.abs(ws.maDelta), 1)} kg sulla settimana precedente)`);
+  L.push(targetLine());
+  return L.join('\n');
+}
+const fmtScarto = (x, unit) => (Math.abs(x) < 0.5 ? 'in target' : `${x < 0 ? '−' : '+'}${fmt(Math.abs(x))} ${unit}/giorno`);
 
 async function copyText(text) {
   try {
@@ -806,7 +862,7 @@ async function copyText(text) {
    UI: SHEET, TOAST, NAVIGAZIONE
    ================================================================ */
 
-const ui = { tab: 'oggi', day: todayKey(), week: weekStart(todayKey()), pasto: defaultPasto(), pesoRange: 30, quick: 'recenti' };
+const ui = { tab: 'oggi', day: todayKey(), weekEnd: todayKey(), pasto: defaultPasto(), pesoRange: 30, quick: 'recenti', recipeTag: '' };
 
 function defaultPasto() {
   const h = new Date().getHours();
@@ -884,9 +940,8 @@ function shiftNav(dir) {
     if (n > todayKey()) return;
     ui.day = n;
   } else if (ui.tab === 'settimana') {
-    const n = addDays(ui.week, dir * 7);
-    if (n > weekStart(todayKey())) return;
-    ui.week = n;
+    const n = addDays(ui.weekEnd, dir * 7);
+    ui.weekEnd = n > todayKey() ? todayKey() : n;
   }
   render();
 }
@@ -980,7 +1035,9 @@ function viewOggi() {
     </div></div></section>`;
   }
 
-  h += `<section class="card"><div class="suggest"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 00-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0012 3z"/></svg></div><p>${esc(dailyTip(k))}</p></div>
+  const tip = dailyTip(k);
+  h += `<section class="card"><div class="suggest"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 00-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0012 3z"/></svg></div><p>${esc(tip.text)}</p></div>
+    ${tip.recipes.length ? `<div class="tip-recipes">${tip.recipes.map((r) => `<button class="chip" data-open-recipe="${esc(r.id)}">${esc(r.nome)} · P ${fmt(recipePortion(r).p)}</button>`).join('')}</div>` : ''}
     <button class="btn primary block" style="margin-top:14px" data-act="stasera">Cosa mangio stasera</button></section>`;
 
   for (const p of PASTI) {
@@ -999,13 +1056,14 @@ function viewOggi() {
         const n = voceNutr(v);
         const vr = kcalRange([v]);
         h += `<button class="item" data-act="edit-voce" data-pasto="${p.id}" data-id="${v.id}">
-          <span class="nm"><b>${esc(v.nome)}</b><small class="num">${v.inc ? '~' : ''}${fmt(v.g)} g · P ${fmt(n.p)} · C ${fmt(n.cn, n.cn < 10 && n.cn % 1 ? 1 : 0)} · F ${fmt(n.f)}</small></span>
+          <span class="nm"><b>${esc(v.nome)}</b><small class="num">${v.from ? `${esc(v.from)} · ` : ''}${v.inc ? '~' : ''}${fmt(v.g)} g · P ${fmt(n.p)} · C ${fmt(n.cn, n.cn < 10 && n.cn % 1 ? 1 : 0)} · F ${fmt(n.f)}</small></span>
           <span class="kc num">${vr.unc ? fmtRange(vr) : fmt(n.kcal)}</span></button>`;
       }
       h += `<div class="meal-foot"><button class="linkbtn" data-act="add-to" data-pasto="${p.id}">+ Aggiungi</button><span class="spacer"></span><button class="linkbtn" data-act="save-preset" data-pasto="${p.id}">Salva come preset</button></div>`;
     }
     h += '</section>';
   }
+  h += `<button class="btn ghost block" data-act="export-day">Copia giornata</button>`;
   return h;
 }
 
@@ -1057,15 +1115,22 @@ function quickHtml() {
     return `<div class="chips">${rec.map((r) => `<button class="chip" data-quick="food" data-id="${esc(r.fid)}" data-g="${r.g}">${esc(r.a.nome)} · ${fmt(r.g)} g</button>`).join('')}</div>`;
   }
   if (ui.quick === 'ricette') {
-    const rs = allRecipes();
-    if (!rs.length) return '<p class="muted small">Nessuna ricetta. Creale in Impostazioni.</p>';
-    return `<div class="chips">${rs.map((r) => `<button class="chip" data-quick="recipe" data-id="${esc(r.id)}">${esc(r.nome)}</button>`).join('')}</div>`;
+    const rs = allRecipes().filter((r) => !ui.recipeTag || recipeTags(r).includes(ui.recipeTag));
+    const filt = `<div class="chips tagfilter">${['', ...RECIPE_TAGS].map((t) => `<button class="chip sm" data-rtag="${t}" aria-pressed="${ui.recipeTag === t}">${t || 'tutte'}</button>`).join('')}</div>`;
+    if (!rs.length) return filt + '<p class="muted small">Nessuna ricetta con questo tag.</p>';
+    return filt + `<div class="list">${rs.map((r) => `<button class="li" data-quick="recipe" data-id="${esc(r.id)}"><span class="nm">${esc(r.nome)}<small class="num">${recipeMeta(r)}</small></span><span class="muted">›</span></button>`).join('')}</div>`;
   }
   if (!S.preset.length) return '<p class="muted small">Nessun pasto salvato. Da un pasto di Oggi tocca "Salva come preset".</p>';
   return `<div class="chips">${S.preset.map((p) => `<button class="chip" data-quick="preset" data-id="${esc(p.id)}">${esc(p.nome)} · ${fmt(sumN(p.voci.map(voceNutr)).kcal)} kcal</button>`).join('')}</div>`;
 }
 
 function onQuickClick(e) {
+  const tf = e.target.closest('[data-rtag]');
+  if (tf) {
+    ui.recipeTag = tf.dataset.rtag;
+    e.currentTarget.innerHTML = quickHtml();
+    return;
+  }
   const b = e.target.closest('[data-quick]');
   if (!b) return;
   const kind = b.dataset.quick;
@@ -1074,9 +1139,7 @@ function onQuickClick(e) {
     const rec = S.recenti.find((x) => x.fid === a.id);
     openQtySheet({ title: a.nome, g: num(b.dataset.g) || a.porz, food: a, inc: rec ? rec.inc || 0 : INC.porzione });
   } else if (kind === 'recipe') {
-    const r = recipeById(b.dataset.id);
-    const info = recipeInfo(r);
-    openQtySheet({ title: r.nome, g: r0(info.porzG), recipe: r, porzG: info.porzG, inc: INC.porzione });
+    openRecipeSheet(recipeById(b.dataset.id), null, () => openAddSheet());
   } else if (kind === 'preset') {
     const p = S.preset.find((x) => x.id === b.dataset.id);
     const undo = snapshotDay(ui.day);
@@ -1145,11 +1208,10 @@ function commitRows(rows) {
   const d = getDay(ui.day, true);
   let n = 0;
   for (const row of rows) {
-    const v = rowToVoce(row);
-    if (!v) continue;
-    d.pasti[ui.pasto].push(v);
-    if (v.fid) pushRecent(v.fid, v.g, v.inc);
-    n++;
+    const voci = rowToVoci(row);
+    for (const v of voci) d.pasti[ui.pasto].push(v);
+    if (voci.length === 1) pushRecent(voci[0].fid, voci[0].g, voci[0].inc);
+    n += voci.length;
   }
   cleanupDay(ui.day);
   save();
@@ -1325,43 +1387,6 @@ function openVoceEditor(pasto, id) {
   });
 }
 
-function openStasera() {
-  const { rem, options } = dinnerOptions(ui.day);
-  const st = S.settings;
-  let intro;
-  if (rem.kcalMin <= 150 && rem.pMin <= 10) intro = `Hai già raggiunto i target minimi. Se hai fame, queste opzioni tengono i numeri in ordine.`;
-  else intro = `Per chiudere la giornata servono circa <b class="num">${fmt(Math.max(0, rem.kcal))} kcal</b> e <b class="num">${fmt(Math.max(0, rem.p))} g</b> di proteine, con al massimo <b class="num">${fmt(Math.max(0, rem.cn))} g</b> di carbo netti.`;
-  const t0 = rem.t;
-  const html = options.map((o, i) => {
-    const list = o.recipe ? [`${esc(o.recipe.nome)} — ${fmt(o.g)} g (1 porzione)`] : o.items.map(([a, g]) => `${esc(a.nome)} ${fmt(g)} g`);
-    const end = sumN([t0, o.tot]);
-    const vv = voto(end);
-    return `<div class="opt"><h3>${o.recipe ? esc(o.recipe.nome) : esc(o.items[0][0].nome)}</h3>
-      <ul>${list.map((x) => `<li>${x}</li>`).join('')}</ul>
-      <div class="small num">${fmt(o.tot.kcal)} kcal · P ${fmt(o.tot.p)} g · C ${fmt(o.tot.cn, 1)} g · F ${fmt(o.tot.f, 1)} g</div>
-      <div class="why num">Chiuderesti a ${fmt(end.kcal)} kcal, ${fmt(end.p)} g proteine, ${fmt(end.cn)} g carbo, ${fmt(end.f)} g fibra · voto ${vv.v}${o.why.length ? `<br>${esc(o.why.join(' · '))}` : ''}</div>
-      <button class="btn sm primary" style="margin-top:10px" data-opt="${i}">Aggiungi a cena</button></div>`;
-  }).join('');
-  openSheet(`<h2>Cosa mangio stasera</h2><p class="small">${intro}</p>${html || '<p class="muted">Nessuna combinazione disponibile: aggiungi alimenti proteici al database.</p>'}
-    <p class="small muted">Opzioni calcolate combinando il database: fonte proteica dimensionata sulle proteine mancanti, verdura, olio per le calorie. Tiene conto delle regole settimanali e di cosa hai mangiato negli ultimi giorni.</p>
-    <div class="sheet-actions"><button class="btn" data-close>Chiudi</button></div>`, (el) => {
-    $$('[data-opt]', el).forEach((b) => b.addEventListener('click', () => {
-      const o = options[b.dataset.opt];
-      const undo = snapshotDay(ui.day);
-      const d = getDay(ui.day, true);
-      if (o.recipe) d.pasti.cena.push(makeVoceRicetta(o.recipe, o.g));
-      else for (const [a, g] of o.items) {
-        d.pasti.cena.push(makeVoce(a, g));
-        pushRecent(a.id, g);
-      }
-      save();
-      closeSheet();
-      render();
-      toast('Aggiunto a cena', 'Annulla', undo);
-    }));
-  });
-}
-
 function savePreset(pasto) {
   const voci = getDay(ui.day)?.pasti[pasto] || [];
   if (!voci.length) return;
@@ -1451,58 +1476,161 @@ function weightChart(range) {
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Grafico del peso con media mobile a 7 giorni">${grid}<path class="raw" d="${line('w')}"/>${dots}<path class="ma" d="${line('ma')}"/></svg>`;
 }
 
+function recipeMeta(r) {
+  const n = recipePortion(r);
+  return `${r.tempo ? `${r.tempo} min · ` : ''}${fmt(n.kcal)} kcal · P ${fmt(n.p)} · C ${fmt(n.cn)} · F ${fmt(n.f)}`;
+}
+function tagChips(tags) {
+  return tags.length ? `<div class="tags">${tags.map((t) => `<span class="badge">${esc(t)}</span>`).join('')}</div>` : '';
+}
+
+// Scheda ricetta: ingredienti con grammature previste (per le porzioni scelte), modificabili.
+function openRecipeSheet(r, pasto, back) {
+  if (pasto) ui.pasto = pasto;
+  let mult = 1;
+  const perPorz = (ing) => ing.g / (r.porzioni || 1);
+  const draw = () => r.ingredienti.map((ing, i) => {
+    const a = foodById(ing.fid);
+    return `<div class="row ing"><span class="nm">${esc(a?.nome || ing.fid)}</span><input class="inp g num" data-ing="${i}" inputmode="decimal" value="${r0(perPorz(ing) * mult)}" aria-label="grammi di ${esc(a?.nome || '')}"><span class="small muted">g</span></div>`;
+  }).join('');
+  openSheet(`<h2>${esc(r.nome)}</h2>
+    <p class="small muted num">${recipeMeta(r)} a porzione${r.porzioni > 1 ? ` · la ricetta fa ${r.porzioni} porzioni` : ''}</p>
+    ${tagChips(recipeTags(r))}
+    ${r.procedimento?.length ? `<ol class="steps">${r.procedimento.slice(0, 4).map((s) => `<li>${esc(s)}</li>`).join('')}</ol>` : ''}
+    <div class="seg" id="rPasto">${PASTI.map((p) => `<button data-p="${p.id}" aria-pressed="${p.id === ui.pasto}">${p.nome}</button>`).join('')}</div>
+    <div class="seg" id="rMult">${[0.5, 1, 1.5, 2].map((x) => `<button data-m="${x}" aria-pressed="${x === 1}">${fmt(x, x % 1 ? 1 : 0)} porz.</button>`).join('')}</div>
+    <div id="rIng">${draw()}</div>
+    <p class="small num" id="rTot"></p>
+    <div class="sheet-actions"><button class="btn" id="rBack">${back ? 'Indietro' : 'Chiudi'}</button><button class="btn primary" id="rAdd">Aggiungi</button></div>`, (el) => {
+    const grams = () => $$('[data-ing]', el).map((inp) => num(inp.value) || 0);
+    const upd = () => {
+      const t = sumN(r.ingredienti.map((ing, i) => { const a = foodById(ing.fid); return a ? nutr(a, grams()[i]) : sumN([]); }));
+      const end = sumN([dayTotals(ui.day), t]);
+      $('#rTot', el).innerHTML = `<b>${fmt(t.kcal)} kcal · P ${fmt(t.p)} g · C ${fmt(t.cn, 1)} g · F ${fmt(t.f, 1)} g</b><br><span class="muted">La giornata arriverebbe a ${fmt(end.kcal)} kcal e ${fmt(end.p)} g di proteine.</span>`;
+    };
+    upd();
+    $('#rIng', el).addEventListener('input', upd);
+    $$('#rPasto button', el).forEach((b) => b.addEventListener('click', () => {
+      ui.pasto = b.dataset.p;
+      $$('#rPasto button', el).forEach((x) => x.setAttribute('aria-pressed', x === b));
+    }));
+    $$('#rMult button', el).forEach((b) => b.addEventListener('click', () => {
+      mult = num(b.dataset.m);
+      $$('#rMult button', el).forEach((x) => x.setAttribute('aria-pressed', x === b));
+      $('#rIng', el).innerHTML = draw();
+      upd();
+    }));
+    $('#rBack', el).addEventListener('click', () => (back ? back() : closeSheet()));
+    $('#rAdd', el).addEventListener('click', () => {
+      const g = grams();
+      const undo = snapshotDay(ui.day);
+      const d = getDay(ui.day, true);
+      let n = 0;
+      r.ingredienti.forEach((ing, i) => {
+        const a = foodById(ing.fid);
+        if (!a || !(g[i] > 0)) return;
+        const v = makeVoce(a, g[i]);
+        v.from = r.nome;
+        d.pasti[ui.pasto].push(v);
+        n++;
+      });
+      cleanupDay(ui.day);
+      save();
+      closeSheet();
+      render();
+      toast(`${r.nome}: ${n} ingredienti aggiunti a ${pastoNome(ui.pasto)}`, 'Annulla', undo);
+    });
+  });
+}
+
+function openStasera() {
+  const { rem, gap, list } = stasera(ui.day);
+  const st = S.settings;
+  const t0 = rem.t;
+  let intro;
+  if (rem.kcalMax <= 0) intro = `Sei a ${fmt(t0.kcal)} kcal, già oltre il massimo di ${fmt(st.kcalMax)}. Nessuna ricetta ci sta.`;
+  else if (rem.kcalMin < 300) intro = `Ti restano ${fmt(Math.max(0, rem.kcalMin))} kcal per il minimo (${fmt(rem.kcalMax)} al massimo): è meno di un pasto.`;
+  else if (rem.kcalMin > 1200) intro = `Hai mangiato troppo poco finora: ti restano ${fmt(rem.kcalMin)} kcal per un pasto solo.`;
+  else intro = `Ti restano ${fmt(rem.kcalMin)}–${fmt(rem.kcalMax)} kcal e ${fmt(gap)} g di proteine per il minimo.`;
+  const shown = list.slice(0, 8);
+  const cards = shown.map((x, i) => {
+    const end = sumN([t0, x.n]);
+    const overC = x.n.cn > Math.max(0, rem.cn);
+    return `<button class="opt" data-i="${i}">
+      <div class="row"><h3 style="flex:1">${esc(x.r.nome)}</h3><span class="num small muted">${x.r.tempo ? `${x.r.tempo} min` : ''}</span></div>
+      <div class="small num">${fmt(x.n.kcal)} kcal · P ${fmt(x.n.p)} g · C ${fmt(x.n.cn, 1)} g · F ${fmt(x.n.f, 1)} g</div>
+      <div class="why num">Chiuderesti a ${fmt(end.kcal)} kcal e ${fmt(end.p)} g di proteine${overC ? ` · <span style="color:var(--bad)">carbo oltre il tetto di ${fmt(end.cn - st.carboMax)} g</span>` : ''}</div>
+      ${tagChips(recipeTags(x.r))}</button>`;
+  }).join('');
+  openSheet(`<h2>Cosa mangio stasera</h2><p>${intro}</p>
+    ${cards || ''}
+    ${list.length > shown.length ? `<p class="small muted">Altre ${list.length - shown.length} ricette ci stanno: le trovi in Aggiungi → Ricette.</p>` : ''}
+    <p class="small muted">Ricette con una porzione entro ${fmt(Math.max(0, rem.kcalMax))} kcal, ordinate per quante proteine mancanti coprono.</p>
+    <div class="sheet-actions"><button class="btn" data-close>Chiudi</button></div>`, (el) => {
+    $$('[data-i]', el).forEach((b) => b.addEventListener('click', () => openRecipeSheet(shown[b.dataset.i].r, 'cena', openStasera)));
+  });
+}
+
 /* ================================================================
-   VISTA: SETTIMANA
+   VISTA: SETTIMANA (ultimi 7 giorni)
    ================================================================ */
 
-function viewSettimana() {
-  const ws = ui.week;
-  const we = addDays(ws, 6);
-  const st = S.settings;
-  const cur = weekStart(todayKey());
-  header(ws === cur ? 'Questa settimana' : 'Settimana', `${labelDay(ws, false)} – ${labelDay(we, false)}`, ws === cur ? 'last' : true);
-  const untilKey = we < todayKey() ? we : todayKey();
-  const days = [...Array(7)].map((_, i) => addDays(ws, i));
-  const withData = days.filter(dayHasData);
-  const tots = withData.map(dayTotals);
-  const avg = (key) => (tots.length ? tots.reduce((a, t) => a + t[key], 0) / tots.length : null);
-  const voti = tots.map((t) => voto(t).v);
-  const votoMedio = voti.length ? voti.reduce((a, b) => a + b, 0) / voti.length : null;
+function mediaRow(label, avg, sc, unit, target, n) {
+  let cls = 'good', txt = 'in target';
+  if (Math.abs(sc) >= 0.5) {
+    cls = 'bad';
+    const tot = Math.abs(sc) * n;
+    txt = sc < 0
+      ? `−${fmt(-sc)} ${unit} al giorno, cioè ${fmt(tot)} ${unit} ${unit === 'kcal' ? 'in meno' : 'persi'} in ${n} ${n === 1 ? 'giorno' : 'giorni'}`
+      : `+${fmt(sc)} ${unit} al giorno, cioè ${fmt(tot)} ${unit} di troppo in ${n} ${n === 1 ? 'giorno' : 'giorni'}`;
+  }
+  return `<div class="mrow"><div class="row"><b style="flex:1">${label}</b><span class="num"><b>${fmt(avg)}</b> ${unit} <span class="muted small">/ ${target}</span></span></div>
+    <div class="small num ${cls === 'bad' ? 'txt-bad' : 'txt-good'}">${txt}</div></div>`;
+}
 
-  let h = `<section class="card"><h2>Giorni</h2><div class="week-days">${days.map((k) => {
+function viewSettimana() {
+  const end = ui.weekEnd;
+  const st = S.settings;
+  const days = last7(end);
+  const isNow = end === todayKey();
+  header(isNow ? 'Ultimi 7 giorni' : '7 giorni', `${labelDay(days[0], false)} – ${labelDay(end, false)}`, isNow ? 'last' : true);
+  const ws = weekStats(end, false);
+  const oggiEscluso = isNow && dayHasData(end) && !ws.days.includes(end);
+
+  let h = `<section class="card"><div class="week-days">${days.map((k) => {
     const d = parseKey(k);
-    const has = dayHasData(k);
-    const v = has ? voto(dayTotals(k)).v : null;
-    return `<button data-goto="${k}" ${k > todayKey() ? 'disabled' : ''}><div class="d">${GIORNI[d.getDay()]} ${d.getDate()}</div><div class="voto sm ${v ? votoClass(v) : ''} num">${v ?? '·'}</div></button>`;
+    const v = dayHasData(k) ? voto(dayTotals(k)).v : null;
+    return `<button data-goto="${k}"><div class="d">${GIORNI[d.getDay()]} ${d.getDate()}</div><div class="voto sm ${v ? votoClass(v) : ''} num">${v ?? '·'}</div></button>`;
   }).join('')}</div></section>`;
 
-  h += `<section class="card"><h2>Medie (${withData.length} ${withData.length === 1 ? 'giorno' : 'giorni'} registrati)</h2>
-    <div class="kv">
-      <div><b class="num">${votoMedio != null ? fmt(votoMedio, 1) : '–'}</b><span>voto medio</span></div>
-      <div><b class="num">${fmt(avg('kcal'))}</b><span>kcal / giorno · target ${st.kcalMin}–${st.kcalMax}</span></div>
-      <div><b class="num">${fmt(avg('p'))}</b><span>g proteine · target ${st.protMin}–${st.protMax}</span></div>
-      <div><b class="num">${fmt(avg('cn'))}</b><span>g carbo netti · max ${st.carboMax}</span></div>
-      <div><b class="num">${fmt(avg('f'))}</b><span>g fibra · target ${st.fibraMin}–${st.fibraMax}</span></div>
-      <div><b class="num">${fmt(avg('na'))}</b><span>mg sodio · max ${st.sodioMax}</span></div>
-    </div>
-    <div class="small muted num" style="margin-top:10px">
-      Proteine in target: ${tots.filter((t) => t.p >= st.protMin).length}/${withData.length} · Calorie in target: ${tots.filter((t) => t.kcal >= st.kcalMin && t.kcal <= st.kcalMax).length}/${withData.length} · Carbo sotto il tetto: ${tots.filter((t) => t.cn <= st.carboMax).length}/${withData.length}${tots.some((t) => t.na > st.sodioMax) ? ` · <span style="color:var(--bad)">Sodio alto: ${tots.filter((t) => t.na > st.sodioMax).length} giorni</span>` : ''}
-    </div></section>`;
+  if (ws.sotto >= 3) {
+    h += `<div class="alert bad"><div><b>${ws.sotto} giorni su ${ws.n} sotto ${fmt(st.kcalSoglia)} kcal</b>È un pattern da correggere: mangiare troppo poco è un errore, non un merito.</div></div>`;
+  }
 
-  const rs = ruleStatus(ws, untilKey);
-  h += `<section class="card"><h2>Regole settimanali</h2>${rs.length ? rs.map((r) => {
-    const cls = r.ok ? (r.tipo === 'max' && r.count === r.n ? 'p' : 'y') : r.tipo === 'min' && we >= todayKey() ? 'p' : 'n';
-    const sym = r.ok ? '✓' : r.tipo === 'min' && we >= todayKey() ? '…' : '✕';
-    return `<div class="rule"><div class="ok ${cls}">${sym}</div><div style="flex:1"><b>${esc(tagLabel(r.tag))}</b><div class="small muted">${r.tipo === 'min' ? 'almeno' : 'al massimo'} ${r.n} pasti</div></div><b class="num">${r.count}/${r.n}</b></div>`;
-  }).join('') : '<p class="muted small">Nessuna regola. Aggiungile in Impostazioni.</p>'}</section>`;
+  if (!ws.n) {
+    h += '<div class="card empty">Nessun giorno registrato in questi 7 giorni.</div>';
+  } else {
+    h += `<section class="card"><h2>Medie giornaliere · ${ws.n} ${ws.n === 1 ? 'giorno' : 'giorni'} registrati</h2><div class="mrows">
+      ${mediaRow('Calorie', ws.avg.kcal, ws.scarti.kcal, 'kcal', `${fmt(st.kcalMin)}–${fmt(st.kcalMax)}`, ws.n)}
+      ${mediaRow('Proteine', ws.avg.p, ws.scarti.p, 'g', `min ${st.protMin}`, ws.n)}
+      ${mediaRow('Carbo netti', ws.avg.cn, ws.scarti.cn, 'g', `max ${st.carboMax}`, ws.n)}
+      ${mediaRow('Fibra', ws.avg.f, ws.scarti.f, 'g', `${st.fibraMin}–${st.fibraMax}`, ws.n)}
+    </div>${oggiEscluso ? `<p class="small muted num" style="margin:12px 0 0">Oggi è escluso finché non supera ${fmt(st.kcalSoglia)} kcal: ora è a ${fmt(dayTotals(end).kcal)}.</p>` : ''}</section>`;
 
-  const maEnd = weightMA(untilKey);
-  const maStart = weightMA(addDays(ws, -1));
-  h += `<section class="card"><h2>Peso</h2><div class="row"><div><div class="stat-big num" style="font-size:32px">${maEnd != null ? fmt(maEnd, 1) : '–'} <small>kg</small></div><div class="small muted">media 7 gg a fine periodo</div></div><span class="spacer"></span>
-    <div class="num" style="font-size:20px;font-weight:700">${maEnd != null && maStart != null ? `${maEnd - maStart <= 0 ? '−' : '+'}${fmt(Math.abs(maEnd - maStart), 1)} kg` : ''}</div></div></section>`;
+    const def = ws.deficit >= 0;
+    h += `<section class="card"><h2>Bilancio energetico</h2><div class="kv">
+      <div><b class="num">${def ? '−' : '+'}${fmt(Math.abs(ws.deficit))}</b><span>kcal ${def ? 'di deficit' : 'di surplus'} in ${ws.n} giorni, su fabbisogno ${fmt(st.fabbisogno)}</span></div>
+      <div><b class="num">${def ? '−' : '+'}${fmt(Math.abs(ws.grasso), 2)} kg</b><span>grasso stimato (deficit ÷ 7.700)</span></div>
+    </div><p class="small muted num" style="margin:10px 0 0">Giorni sotto ${fmt(st.kcalSoglia)} kcal: ${ws.sotto}</p></section>`;
+  }
 
-  h += `<button class="btn ghost block" data-act="export-week">Copia i dati della settimana per un'analisi esterna</button>
-    <p class="small muted center">CRUMB non dà giudizi qualitativi: copia i dati e incollali dove preferisci.</p>`;
+  const rs = ruleStatus(end);
+  h += `<section class="card"><h2>Regole · ultimi 7 giorni</h2>${rs.length ? rs.map((r) => `<div class="rule"><div class="ok ${r.ok ? 'y' : 'n'}">${r.ok ? '✓' : '✕'}</div><div style="flex:1"><b>${esc(ruleLabel(r.tag))}</b><div class="small muted">${r.tag === '@colazione' ? `almeno ${r.n} giorni` : `${r.tipo === 'min' ? 'almeno' : 'al massimo'} ${r.n} ${r.n === 1 ? 'volta' : 'volte'}`}</div></div><b class="num small">${ruleText(r)}</b></div>`).join('') : '<p class="muted small">Nessuna regola. Aggiungile in Impostazioni.</p>'}</section>`;
+
+  h += `<section class="card"><h2>Peso · media mobile 7 giorni</h2><div class="row"><div><div class="stat-big num" style="font-size:32px">${ws.ma != null ? fmt(ws.ma, 1) : '–'} <small>kg</small></div></div><span class="spacer"></span>
+    <div class="right"><div class="num" style="font-size:20px;font-weight:700">${ws.maDelta != null ? `${ws.maDelta <= 0 ? '−' : '+'}${fmt(Math.abs(ws.maDelta), 1)} kg` : '–'}</div><div class="small muted">sulla settimana precedente</div></div></div></section>`;
+
+  h += `<button class="btn ghost block" data-act="export-week">Copia settimana</button>`;
   return h;
 }
 
@@ -1515,8 +1643,7 @@ function viewStorico() {
   const keys = Object.keys(S.giorni).filter(dayHasData).sort().reverse();
   if (!keys.length) return '<div class="card empty">Ancora nessun giorno registrato.</div>';
   const st = S.settings;
-  let h = `<div class="row" style="margin-bottom:12px;gap:8px"><button class="btn ghost sm" data-export-days="7">Copia 7 gg</button><button class="btn ghost sm" data-export-days="14">Copia 14 gg</button><button class="btn ghost sm" data-export-days="30">Copia 30 gg</button></div>`;
-  h += '<section class="card" style="padding:4px 16px">';
+  let h = '<section class="card" style="padding:4px 16px">';
   let lastWeek = null;
   for (const k of keys) {
     const ws = weekStart(k);
@@ -1568,9 +1695,9 @@ function viewImpostazioni() {
   </div></details>
 
   <details class="sec"><summary>Regole settimanali</summary><div class="body">
-    <p class="small muted">Conteggio = numero di pasti della settimana (lun–dom) che contengono almeno un alimento con quel tag.</p>
+    <p class="small muted">Contano gli ultimi 7 giorni. Per un tag: quanti pasti contengono almeno un alimento con quel tag. Colazione: quanti giorni ce l'hanno registrata.</p>
     <div id="rules">${st.regole.map((r, i) => `<div class="row" style="margin-bottom:8px">
-      <select class="inp" data-rule="${i}" data-k="tag" style="flex:2">${TAG_DISPONIBILI.map((t) => `<option ${t === r.tag ? 'selected' : ''}>${t}</option>`).join('')}</select>
+      <select class="inp" data-rule="${i}" data-k="tag" style="flex:2">${['@colazione', ...TAG_DISPONIBILI].map((t) => `<option value="${t}" ${t === r.tag ? 'selected' : ''}>${esc(ruleLabel(t).toLowerCase())}</option>`).join('')}</select>
       <select class="inp" data-rule="${i}" data-k="tipo" style="flex:1.4"><option value="min" ${r.tipo === 'min' ? 'selected' : ''}>almeno</option><option value="max" ${r.tipo === 'max' ? 'selected' : ''}>al massimo</option></select>
       <input class="inp num" data-rule="${i}" data-k="n" inputmode="numeric" value="${r.n}" style="flex:.8;min-width:0">
       <button class="iconbtn" data-rule-del="${i}" aria-label="Rimuovi regola">✕</button></div>`).join('')}</div>
@@ -1586,9 +1713,7 @@ function viewImpostazioni() {
   <details class="sec"><summary>Ricette <span class="muted small" style="margin-left:8px">${allRecipes().length}</span></summary><div class="body">
     <button class="btn primary block" data-act="recipe-new" style="margin-bottom:10px">+ Nuova ricetta</button>
     <div class="list">${allRecipes().map((r) => {
-      const info = recipeInfo(r);
-      const n = nutrPer(info.per, info.porzG);
-      return `<button class="li" data-recipe="${esc(r.id)}"><span class="nm">${esc(r.nome)}<small class="num">porzione ${fmt(info.porzG)} g · ${fmt(n.kcal)} kcal · P ${fmt(n.p)} · C ${fmt(n.cn, 1)}</small></span>${r.base ? '' : '<span class="badge">tua</span>'}</button>`;
+      return `<button class="li" data-recipe="${esc(r.id)}"><span class="nm">${esc(r.nome)}<small class="num">${recipeMeta(r)}</small>${tagChips(recipeTags(r))}</span>${r.base ? '' : '<span class="badge">tua</span>'}</button>`;
     }).join('')}</div>
   </div></details>
 
@@ -1600,7 +1725,6 @@ function viewImpostazioni() {
     <p class="small muted">I dati vivono solo su questo dispositivo. Esporta un backup ogni tanto.</p>
     <div class="grid2"><button class="btn" data-act="export-json">Esporta JSON</button><button class="btn" data-act="import-json">Importa JSON</button></div>
     <input type="file" id="importFile" accept="application/json,.json" class="hide">
-    <button class="btn ghost block" data-act="export-text" style="margin-top:10px">Copia ultimi 30 giorni come testo</button>
     <button class="btn danger block" data-act="reset" style="margin-top:10px">Cancella tutti i dati</button>
   </div></details>
 
@@ -1706,9 +1830,13 @@ function openRecipeEditor(id) {
   openSheet(`<h2>${r ? esc(r.nome) : 'Nuova ricetta'}</h2>
     ${r?.base ? '<p class="small muted">Ricetta precaricata: salvando ne crei una tua copia.</p>' : ''}
     <label class="f"><span>Nome</span><input class="inp" id="rn" value="${esc(r?.nome || '')}"></label>
-    <label class="f"><span>Porzioni</span><input class="inp num" id="rp" inputmode="numeric" value="${r?.porzioni || 1}"></label>
+    <div class="grid2"><label class="f"><span>Porzioni</span><input class="inp num" id="rp" inputmode="numeric" value="${r?.porzioni || 1}"></label>
+    <label class="f"><span>Tempo (minuti)</span><input class="inp num" id="rt" inputmode="numeric" value="${r?.tempo || ''}"></label></div>
     <label class="f"><span>Ingredienti (testo libero, come per i pasti)</span><textarea class="inp" id="ri" rows="4" autocapitalize="off" spellcheck="false" placeholder="uova 3, zucchine 200, parmigiano 15, olio 1 cucchiaino">${esc(text)}</textarea></label>
     <div id="rprev" class="small"></div>
+    <label class="f"><span>Procedimento (max 4 righe)</span><textarea class="inp" id="rproc" rows="4">${esc((r?.procedimento || []).join('\n'))}</textarea></label>
+    <div class="f"><span class="small muted">Tag manuali (gli altri li calcola l'app dai numeri)</span><div class="chips" style="margin-top:6px">${['batch', 'senza-cottura'].map((t) => `<label class="chip tagchk"><input type="checkbox" value="${t}" ${(r?.tag || []).includes(t) ? 'checked' : ''}>${t}</label>`).join('')}</div></div>
+    ${r ? `<p class="small muted">Tag calcolati: ${recipeTags(r).join(', ') || 'nessuno'}. Proteico &gt;${RICETTA_SOGLIE.proteico} g proteine, fibra-alta ≥${RICETTA_SOGLIE.fibraAlta} g, sodio-basso ≤${RICETTA_SOGLIE.sodioBasso} mg a porzione, veloce &lt;${RICETTA_SOGLIE.veloce} min.</p>` : ''}
     <div class="sheet-actions">${r ? (r.base ? '<button class="btn danger" id="rhide">Nascondi</button>' : '<button class="btn danger" id="rdel">Elimina</button>') : '<button class="btn" data-close>Annulla</button>'}<button class="btn primary" id="rok">Salva</button></div>`, (el) => {
     const upd = () => {
       const rows = parseInput($('#ri', el).value).filter((x) => x.src);
@@ -1731,7 +1859,14 @@ function openRecipeEditor(id) {
       const nome = $('#rn', el).value.trim();
       const ing = resolved.filter((x) => !x.miss).map((x) => ({ fid: x.fid, g: x.g }));
       if (!nome || !ing.length) return toast('Servono nome e almeno un ingrediente');
-      const data = { nome, porzioni: Math.max(1, num($('#rp', el).value) || 1), ingredienti: ing };
+      const data = {
+        nome,
+        porzioni: Math.max(1, num($('#rp', el).value) || 1),
+        tempo: Math.max(0, Math.round(num($('#rt', el).value) || 0)) || null,
+        procedimento: $('#rproc', el).value.split('\n').map((x) => x.trim()).filter(Boolean).slice(0, 4),
+        tag: $$('.tagchk input:checked', el).map((x) => x.value),
+        ingredienti: ing,
+      };
       if (r && !r.base) Object.assign(S.ricette.find((x) => x.id === r.id), data);
       else {
         S.ricette.push({ id: uid('r'), ...data });
@@ -1798,12 +1933,13 @@ function importJSON(file) {
 
 function bindView(main) {
   main.onclick = (e) => {
-    const t = e.target.closest('[data-act],[data-goto],[data-food],[data-recipe],[data-preset-del],[data-rule-del],[data-wdel],[data-export-days],[data-r]');
+    const t = e.target.closest('[data-act],[data-goto],[data-food],[data-recipe],[data-open-recipe],[data-preset-del],[data-rule-del],[data-wdel],[data-r]');
     if (!t) return;
     const act = t.dataset.act;
     if (t.dataset.goto) { ui.day = t.dataset.goto; setTab('oggi'); return; }
     if (t.dataset.food) return openFoodEditor(t.dataset.food);
     if (t.dataset.recipe) return openRecipeEditor(t.dataset.recipe);
+    if (t.dataset.openRecipe) return openRecipeSheet(recipeById(t.dataset.openRecipe));
     if (t.dataset.r != null && t.closest('#rangeSeg')) { ui.pesoRange = Number(t.dataset.r); return render(); }
     if (t.dataset.presetDel) {
       const p = S.preset.find((x) => x.id === t.dataset.presetDel);
@@ -1818,22 +1954,18 @@ function bindView(main) {
         $('#wd', el).addEventListener('click', () => { delete S.pesi[k]; save(); closeSheet(); render(); toast('Pesata eliminata', 'Annulla', () => { S.pesi[k] = w; save(); render(); }); });
       });
     }
-    if (t.dataset.exportDays) {
-      const n = Number(t.dataset.exportDays);
-      return copyText(exportText(addDays(todayKey(), -n + 1), todayKey()));
-    }
     switch (act) {
       case 'stasera': return openStasera();
       case 'add-to': return openAddSheet(t.dataset.pasto);
       case 'edit-voce': return openVoceEditor(t.dataset.pasto, t.dataset.id);
       case 'save-preset': return savePreset(t.dataset.pasto);
-      case 'export-week': return copyText(exportText(ui.week, addDays(ui.week, 6) < todayKey() ? addDays(ui.week, 6) : todayKey()));
-      case 'export-text': return copyText(exportText(addDays(todayKey(), -29), todayKey()));
+      case 'export-day': return copyText(exportDay(ui.day));
+      case 'export-week': return copyText(exportWeek(ui.weekEnd));
       case 'export-json': return exportJSON();
       case 'import-json': return $('#importFile').click();
       case 'food-new': return openFoodEditor(null);
       case 'recipe-new': return openRecipeEditor(null);
-      case 'rule-add': S.settings.regole.push({ tag: 'legume', tipo: 'min', n: 2 }); save(); return render();
+      case 'rule-add': S.settings.regole.push({ tag: 'verdura', tipo: 'min', n: 7 }); save(); return render();
       case 'reset':
         return openSheet(`<h2>Cancellare tutto?</h2><p>Giorni, pesate, alimenti, ricette e impostazioni verranno eliminati da questo dispositivo. Esporta prima un backup se ti serve.</p>
           <div class="sheet-actions"><button class="btn" data-close>Annulla</button><button class="btn danger" id="rs">Cancella</button></div>`, (el) => {
@@ -1892,7 +2024,7 @@ document.addEventListener('visibilitychange', () => {
   const t = todayKey();
   if (t !== lastToday) {
     if (ui.day === lastToday) ui.day = t;
-    ui.week = weekStart(t);
+    if (ui.weekEnd === lastToday) ui.weekEnd = t;
     ui.pasto = defaultPasto();
     lastToday = t;
     render();
@@ -1906,4 +2038,4 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 render();
 
 // Esposto per i test in console / headless.
-window.CRUMB = { parseInput, voto, dinnerOptions, dailyTip, weightMA, findCandidates, exportText, get state() { return S; } };
+window.CRUMB = { parseInput, voto, stasera, dailyTip, weekStats, ruleStatus, recipeTags, recipePortion, weightMA, findCandidates, exportDay, exportWeek, get state() { return S; } };

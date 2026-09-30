@@ -6,6 +6,12 @@ Tracking alimentare quotidiano, mobile-first, a uso personale. Tutto in italiano
 Ogni numero, voto, media, alert e suggerimento è calcolato in JavaScript sui dati locali (localStorage).
 Dove servirebbe un giudizio qualitativo, CRUMB esporta i dati come testo da incollare altrove.
 
+## Schermate
+- **Oggi**: barre kcal/proteine/carbo netti/fibra, voto, alert (sodio, fibra concentrata, olio e formaggi), range per le porzioni non pesate, suggerimento con ricette, "Cosa mangio stasera", "Copia giornata".
+- **Peso**: pesata del mattino e media mobile a 7 giorni.
+- **Settimana**: ultimi 7 giorni, medie con scarto dal target, deficit e grasso stimato (÷ 7700), giorni sotto 1800 kcal, regole per tag, "Copia settimana".
+- **Storico** e **Impostazioni** (target, soglie del voto, regole, alimenti, ricette, backup JSON).
+
 ## File
 - `index.html` — struttura e stile
 - `app.js` — stato, parser, calcoli, viste
