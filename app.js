@@ -22,6 +22,7 @@ const DEFAULT_SETTINGS = {
   kcalMax: 2200,
   protMin: 150,
   protMax: 180,
+  carboMin: 0,          // 0 = nessun minimo (solo tetto)
   carboMax: 30,
   fibraMin: 25,
   fibraMax: 30,
@@ -42,6 +43,17 @@ const DEFAULT_SETTINGS = {
     { tag: '@colazione', tipo: 'min', n: 5 },
   ],
 };
+// Impostazioni pronte per carbo e fibra: cambiano solo questi campi, kcal e proteine restano le tue.
+// Mediterranea: con proteine a 150–180 g (~30% delle kcal) e grassi al 25–30%, ai carboidrati resta
+// circa il 40% delle kcal: 200–230 g totali, cioè ~170–200 g netti. Minimo ~120 g netti (~150 g totali).
+const IMPOSTAZIONI_CARBO = {
+  chetogenica: { nome: 'Chetogenica', carboMin: 0, carboMax: 30, fibraMin: 25, fibraMax: 30, fibraBassa: 15, fibraAlta: 35 },
+  mediterranea: { nome: 'Mediterranea', carboMin: 120, carboMax: 200, fibraMin: 30, fibraMax: 40, fibraBassa: 20, fibraAlta: 50 },
+};
+function impostazioneAttiva() {
+  const st = S.settings;
+  return Object.keys(IMPOSTAZIONI_CARBO).find((k) => Object.entries(IMPOSTAZIONI_CARBO[k]).every(([f, v]) => f === 'nome' || st[f] === v)) || null;
+}
 // Default della prima versione: se l'utente non li ha toccati, passano ai nuovi.
 const REGOLE_V1 = '[{"tag":"pesce","tipo":"min","n":3},{"tag":"pesce-azzurro","tipo":"min","n":2},{"tag":"carne-rossa","tipo":"max","n":3},{"tag":"processato","tipo":"max","n":3},{"tag":"verdura","tipo":"min","n":10}]';
 
@@ -654,7 +666,7 @@ function weekStats(endKey, includeToday = true) {
     scarti: {
       kcal: scarto(a.kcal, st.kcalMin, st.kcalMax),
       p: scarto(a.p, st.protMin, null),
-      cn: scarto(a.cn, null, st.carboMax),
+      cn: scarto(a.cn, st.carboMin > 0 ? st.carboMin : null, st.carboMax),
       f: scarto(a.f, st.fibraMin, st.fibraMax),
     },
     deficit,
@@ -920,7 +932,7 @@ function vociLine(voci) {
 }
 function targetLine() {
   const st = S.settings;
-  return `Target: ${fmt(st.kcalMin)}–${fmt(st.kcalMax)} kcal · proteine ${st.protMin}–${st.protMax} g · carbo netti max ${st.carboMax} g · fibra ${st.fibraMin}–${st.fibraMax} g`;
+  return `Target: ${fmt(st.kcalMin)}–${fmt(st.kcalMax)} kcal · proteine ${st.protMin}–${st.protMax} g · carbo netti ${st.carboMin > 0 ? `${st.carboMin}–${st.carboMax}` : `max ${st.carboMax}`} g · fibra ${st.fibraMin}–${st.fibraMax} g`;
 }
 function pesoLine(k) {
   const w = S.pesi[k], ma = weightMA(k), prev = weightMA(addDays(k, -7));
@@ -1116,7 +1128,7 @@ function barHtml(label, val, min, max, unit, kind, extra = '') {
     const leftMin = min - val;
     const leftMax = max - val;
     if (val > max) {
-      cls = kind === 'range' ? 'warn' : 'good';
+      cls = kind === 'range' ? 'warn' : kind === 'rangecap' ? 'bad' : 'good';
       foot = `oltre il massimo di ${fmt(-leftMax)} ${unit}`;
     } else if (val >= min) {
       cls = 'good';
@@ -1156,7 +1168,7 @@ function viewOggi() {
   h += `<section class="card"><div class="bars">
     ${barHtml('Calorie', t.kcal, st.kcalMin, st.kcalMax, 'kcal', 'range', kr.unc ? `stima ${fmtRange(kr)} kcal` : '')}
     ${barHtml('Proteine', t.p, st.protMin, st.protMax, 'g', 'min')}
-    ${barHtml('Carbo netti', t.cn, 0, st.carboMax, 'g', 'cap')}
+    ${st.carboMin > 0 ? barHtml('Carbo netti', t.cn, st.carboMin, st.carboMax, 'g', 'rangecap') : barHtml('Carbo netti', t.cn, 0, st.carboMax, 'g', 'cap')}
     ${barHtml('Fibra', t.f, st.fibraMin, st.fibraMax, 'g', 'range')}
   </div></section>`;
 
@@ -1845,7 +1857,7 @@ function viewSettimana() {
     h += `<section class="card"><h2>Medie giornaliere · ${ws.n} ${ws.n === 1 ? 'giorno' : 'giorni'} registrati</h2><div class="mrows">
       ${mediaRow('Calorie', ws.avg.kcal, ws.scarti.kcal, 'kcal', `${fmt(st.kcalMin)}–${fmt(st.kcalMax)}`, ws.n)}
       ${mediaRow('Proteine', ws.avg.p, ws.scarti.p, 'g', `min ${st.protMin}`, ws.n)}
-      ${mediaRow('Carbo netti', ws.avg.cn, ws.scarti.cn, 'g', `max ${st.carboMax}`, ws.n)}
+      ${mediaRow('Carbo netti', ws.avg.cn, ws.scarti.cn, 'g', st.carboMin > 0 ? `${st.carboMin}–${st.carboMax}` : `max ${st.carboMax}`, ws.n)}
       ${mediaRow('Fibra', ws.avg.f, ws.scarti.f, 'g', `${st.fibraMin}–${st.fibraMax}`, ws.n)}
     </div>${oggiEscluso ? `<p class="small muted num" style="margin:12px 0 0">Oggi è escluso finché non supera ${fmt(st.kcalSoglia)} kcal: ora è a ${fmt(dayTotals(end).kcal)}.</p>` : ''}</section>`;
 
@@ -1913,9 +1925,12 @@ function viewImpostazioni() {
   </div></details>
 
   <details class="sec"><summary>Target giornalieri</summary><div class="body">
+    <span class="small muted">Carboidrati e fibra</span>
+    <div class="seg" id="impCarbo" style="margin-top:4px">${Object.entries(IMPOSTAZIONI_CARBO).map(([k, v]) => `<button data-imp="${k}" aria-pressed="${impostazioneAttiva() === k}">${v.nome}</button>`).join('')}<button disabled aria-pressed="${!impostazioneAttiva()}">Personalizzata</button></div>
+    <p class="small muted" style="margin-top:-4px">${impostazioneAttiva() === 'mediterranea' ? 'Carbo netti 120–200 g, fibra 30–40 g. Kcal e proteine restano le tue.' : impostazioneAttiva() === 'chetogenica' ? 'Carbo netti max 30 g, fibra 25–30 g. Kcal e proteine restano le tue.' : 'Valori tuoi. Tocca un\'impostazione per ricaricarne i valori.'}</p>
     <div class="grid2">${field('kcalMin', 'Kcal minimo', st.kcalMin)}${field('kcalMax', 'Kcal massimo', st.kcalMax)}</div>
     <div class="grid2">${field('protMin', 'Proteine minimo', st.protMin, 'g')}${field('protMax', 'Proteine massimo', st.protMax, 'g')}</div>
-    ${field('carboMax', 'Carbo netti massimo', st.carboMax, 'g')}
+    <div class="grid2">${field('carboMin', 'Carbo netti minimo (0 = nessuno)', st.carboMin, 'g')}${field('carboMax', 'Carbo netti massimo', st.carboMax, 'g')}</div>
     <div class="grid2">${field('fibraMin', 'Fibra minimo', st.fibraMin, 'g')}${field('fibraMax', 'Fibra massimo', st.fibraMax, 'g')}</div>
     ${field('sodioMax', 'Soglia alert sodio', st.sodioMax, 'mg')}
   </div></details>
@@ -2226,6 +2241,19 @@ function bindView(main) {
     const r = S.settings.regole[inp.dataset.rule];
     r[inp.dataset.k] = inp.dataset.k === 'n' ? Math.max(0, Math.round(num(inp.value) || 0)) : inp.value;
     save();
+  }));
+  $$('[data-imp]', main).forEach((b) => b.addEventListener('click', () => {
+    const imp = IMPOSTAZIONI_CARBO[b.dataset.imp];
+    const prima = structuredClone(S.settings);
+    for (const [f, v] of Object.entries(imp)) if (f !== 'nome') S.settings[f] = v;
+    save();
+    render();
+    $('#impCarbo')?.closest('details')?.setAttribute('open', '');
+    toast(`${imp.nome}: carbo netti ${imp.carboMin ? `${imp.carboMin}–` : 'max '}${imp.carboMax} g`, 'Annulla', () => {
+      S.settings = prima;
+      save();
+      render();
+    });
   }));
   const sd = $('#secDispensa .body', main);
   if (sd) bindDispensa(sd, () => { $('#dis-base', sd).innerHTML = dispensaChips('base'); $('#dis-fresco', sd).innerHTML = dispensaChips('fresco'); });
