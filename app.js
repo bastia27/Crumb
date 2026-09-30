@@ -2174,7 +2174,7 @@ function viewImpostazioni() {
 
 function foodListHtml(q) {
   const list = q ? findCandidates(q).filter((c) => c.kind === 'food' && c.score >= 0.4).map((c) => c.item) : allFoods().slice().sort((a, b) => a.nome.localeCompare(b.nome));
-  return list.map((a) => `<button class="li" data-food="${esc(a.id)}"><span class="nm">${esc(a.nome)}<small class="num">${fmt(a.kcal)} kcal · P ${fmt(a.p, 1)} · C ${fmt(a.cn, 1)} · F ${fmt(a.f, 1)} · Na ${fmt(a.na)}</small></span>${!a.base ? '<span class="badge">tuo</span>' : S.override[a.id] ? '<span class="badge">mod.</span>' : ''}</button>`).join('') || '<p class="small muted">Nessun risultato.</p>';
+  return list.map((a) => `<button class="li" data-food="${esc(a.id)}"><span class="nm">${esc(a.nome)}<small class="num">${fmt(a.kcal)} kcal · P ${fmt(a.p, 1)} · C ${fmt(a.cn, 1)} · F ${fmt(a.f, 1)} · Na ${fmt(a.na)}</small></span>${!a.base ? '<span class="badge">tuo</span>' : S.override[a.id] ? '<span class="badge">mod.</span>' : a.stima ? '<span class="badge bad">da verificare</span>' : ''}</button>`).join('') || '<p class="small muted">Nessun risultato.</p>';
 }
 
 function openFoodEditor(id, preset = {}, onSaved, onBack) {
@@ -2184,6 +2184,7 @@ function openFoodEditor(id, preset = {}, onSaved, onBack) {
   const ctot = a ? r1(a.cn + a.f) : '';
   openSheet(`<h2>${a ? 'Modifica alimento' : 'Nuovo alimento'}</h2>
     ${isBase ? '<p class="small muted">Alimento precaricato: le modifiche restano sul dispositivo e si possono annullare.</p>' : ''}
+    ${a?.stima && !S.override[a.id] ? '<p class="small txt-bad">Valori stimati, non presi dall\'etichetta: correggili con quelli della confezione e salva.</p>' : ''}
     <label class="f"><span>Nome</span><input class="inp" id="fn" value="${esc(v.nome)}"></label>
     <label class="f"><span>Altri nomi (separati da virgola, aiutano il riconoscimento)</span><input class="inp" id="fa" value="${esc((v.alias || []).join(', '))}" autocapitalize="off"></label>
     <p class="small muted" style="margin:0 0 8px">Valori per 100 g</p>

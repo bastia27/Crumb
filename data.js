@@ -166,6 +166,8 @@ ALIMENTI_BASE.push(
   _A('gelato', 'Gelato (fior di latte)', ['gelato', 'coppetta gelato', 'cono gelato'], 200, 3.8, 24, 0.7, 70, 100, ['latticino'], { pallina: 50 }),
 
   // Grassi, frutta secca e semi
+  _A('latte-cocco', 'Latte di cocco (in lattina)', ['latte di cocco', 'latte cocco', 'crema di cocco', 'coconut milk'], 197, 2, 2.8, 0, 13, 50, ['grasso'], { cucchiaio: 15, lattina: 400 }),
+  _A('bevanda-cocco', 'Bevanda al cocco (da bere)', ['bevanda al cocco', 'bevanda di cocco', 'latte di cocco da bere', 'drink al cocco'], 20, 0.1, 2.7, 0, 52, 200, [], { bicchiere: 200, tazza: 250 }),
   _A('olio-semi', 'Olio di semi', ['olio di semi', 'olio di girasole', 'olio di arachidi', 'olio di mais'], 899, 0, 0, 0, 0, 10, ['grasso'], { cucchiaio: 10, cucchiaino: 4 }),
   _A('olio-cocco', 'Olio di cocco', ['olio di cocco'], 892, 0, 0, 0, 0, 10, ['grasso'], { cucchiaio: 10, cucchiaino: 4 }),
   _A('nocciole', 'Nocciole', ['nocciole', 'nocciola'], 628, 15, 7, 9.7, 0, 30, ['frutta-secca'], { pezzo: 1.3 }),
@@ -204,6 +206,7 @@ ALIMENTI_BASE.push(
   _A('crauti', 'Crauti', ['crauti'], 19, 0.9, 1.4, 2.9, 661, 100, ['verdura', 'processato']),
   _A('passata', 'Passata di pomodoro', ['passata', 'passata di pomodoro', 'sugo', 'sugo di pomodoro', 'pelati', 'polpa di pomodoro'], 24, 1.3, 3.7, 1.2, 10, 100, ['verdura'], { cucchiaio: 20 }),
   _A('minestrone', 'Minestrone di verdure', ['minestrone', 'zuppa di verdure', 'passato di verdure', 'vellutata'], 45, 2, 6, 2.5, 200, 250, ['verdura']),
+  { ..._A('vellutata-carciofi-conad', 'Vellutata di carciofi Conad', ['vellutata di carciofi conad', 'vellutata di carciofi', 'vellutata carciofi', 'crema di carciofi'], 48, 1.4, 4.5, 1.8, 320, 300, ['verdura']), stima: true },
   _A('verdure-grigliate', 'Verdure grigliate', ['verdure grigliate', 'grigliata di verdure', 'verdure miste'], 30, 1.3, 3.5, 2.3, 10, 200, ['verdura']),
   _A('parmigiana', 'Parmigiana di melanzane', ['parmigiana', 'parmigiana di melanzane'], 150, 6.5, 6, 2.5, 350, 250, ['verdura', 'latticino']),
 
