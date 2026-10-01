@@ -6,8 +6,8 @@
 
 const ALIMENTI_BASE = [
   // — Carne bianca
-  { id: 'pollo', nome: 'Petto di pollo', alias: ['pollo', 'petto pollo', 'petto di pollo'], kcal: 100, p: 23.3, cn: 0, f: 0, na: 60, porz: 150, tag: ['carne-bianca'], unita: { fetta: 100 } },
-  { id: 'tacchino', nome: 'Fesa di tacchino', alias: ['tacchino', 'fesa tacchino', 'petto di tacchino'], kcal: 107, p: 24, cn: 0, f: 0, na: 50, porz: 150, tag: ['carne-bianca'], unita: { fetta: 100 } },
+  { id: 'pollo', nome: 'Petto di pollo', alias: ['pollo', 'petto pollo', 'petto di pollo', 'filetti di pollo', 'filetto di pollo', 'straccetti di pollo', 'bocconcini di pollo', 'fettine di pollo', 'fettina di pollo', 'pollo a cubetti', 'petti di pollo'], kcal: 100, p: 23.3, cn: 0, f: 0, na: 60, porz: 150, tag: ['carne-bianca'], unita: { fetta: 100 } },
+  { id: 'tacchino', nome: 'Fesa di tacchino', alias: ['tacchino', 'fesa tacchino', 'petto di tacchino', 'fettine di tacchino', 'fettina di tacchino', 'straccetti di tacchino', 'bocconcini di tacchino'], kcal: 107, p: 24, cn: 0, f: 0, na: 50, porz: 150, tag: ['carne-bianca'], unita: { fetta: 100 } },
   { id: 'uova', nome: 'Uova', alias: ['uovo', 'uova', 'uova intere'], kcal: 128, p: 12.4, cn: 0, f: 0, na: 137, porz: 110, tag: [], unita: { pezzo: 55 } },
   { id: 'albume', nome: 'Albume', alias: ['albume', 'albumi', 'chiara d uovo'], kcal: 43, p: 10.7, cn: 0.7, f: 0, na: 179, porz: 100, tag: [], unita: { pezzo: 33 } },
 
@@ -26,7 +26,7 @@ const ALIMENTI_BASE = [
 
   // — Carne rossa
   { id: 'macinato-manzo', nome: 'Macinato di manzo', alias: ['macinato', 'macinato di manzo', 'carne macinata', 'hamburger', 'burger', 'hamburger di scottona', 'hamburger di manzo', 'scottona', 'macinato di scottona'], kcal: 176, p: 20, cn: 0, f: 0, na: 66, porz: 150, tag: ['carne-rossa'] },
-  { id: 'manzo', nome: 'Manzo magro (bistecca)', alias: ['manzo', 'bistecca', 'fettina di manzo', 'tagliata', 'filetto di manzo'], kcal: 129, p: 21.5, cn: 0, f: 0, na: 60, porz: 180, tag: ['carne-rossa'], unita: { fetta: 120 } },
+  { id: 'manzo', nome: 'Manzo magro (bistecca)', alias: ['manzo', 'bistecca', 'bistecca di manzo', 'fettina di manzo', 'fettina', 'fesa di manzo', 'girello', 'girello di manzo', 'noce di manzo', 'scamone', 'sottofesa', 'carne di manzo', 'manzo magro', 'carpaccio crudo'], kcal: 129, p: 21.5, cn: 0, f: 0, na: 60, porz: 180, tag: ['carne-rossa'], unita: { fetta: 120 } },
 
   // — Salumi (processati)
   { id: 'bresaola', nome: 'Bresaola', alias: ['bresaola'], kcal: 151, p: 32, cn: 0.4, f: 0, na: 1597, porz: 60, tag: ['carne-rossa', 'processato'], unita: { fetta: 8 } },
@@ -34,8 +34,8 @@ const ALIMENTI_BASE = [
   { id: 'cotto', nome: 'Prosciutto cotto', alias: ['cotto', 'prosciutto cotto'], kcal: 215, p: 19.8, cn: 0.9, f: 0, na: 648, porz: 50, tag: ['carne-rossa', 'processato'], unita: { fetta: 15 } },
   { id: 'speck', nome: 'Speck', alias: ['speck'], kcal: 303, p: 28.3, cn: 0.5, f: 0, na: 1810, porz: 50, tag: ['carne-rossa', 'processato'], unita: { fetta: 10 } },
   { id: 'mortadella', nome: 'Mortadella', alias: ['mortadella'], kcal: 317, p: 14.7, cn: 0.5, f: 0, na: 1000, porz: 50, tag: ['carne-rossa', 'processato'], unita: { fetta: 15 } },
-  { id: 'salame', nome: 'Salame', alias: ['salame', 'salamino'], kcal: 392, p: 26.7, cn: 1.5, f: 0, na: 1500, porz: 40, tag: ['carne-rossa', 'processato'], unita: { fetta: 8 } },
-  { id: 'salsiccia', nome: 'Salsiccia', alias: ['salsiccia', 'salsicce'], kcal: 304, p: 15.4, cn: 0.6, f: 0, na: 800, porz: 150, tag: ['carne-rossa', 'processato'], unita: { pezzo: 100 } },
+  { id: 'salame', nome: 'Salame', alias: ['salame', 'salamino', 'salame piccante', 'spianata', 'soppressata', 'salame milano', 'salame napoli', 'finocchiona', 'cacciatorino'], kcal: 392, p: 26.7, cn: 1.5, f: 0, na: 1500, porz: 40, tag: ['carne-rossa', 'processato'], unita: { fetta: 8 } },
+  { id: 'salsiccia', nome: 'Salsiccia', alias: ['salsiccia', 'salsicce', 'luganega', 'salamella', 'salsiccia di maiale'], kcal: 304, p: 15.4, cn: 0.6, f: 0, na: 800, porz: 150, tag: ['carne-rossa', 'processato'], unita: { pezzo: 100 } },
 
   // — Latticini
   { id: 'parmigiano', nome: 'Parmigiano', alias: ['parmigiano', 'parmigiano reggiano', 'grana', 'grana padano'], kcal: 392, p: 33.5, cn: 0, f: 0, na: 600, porz: 30, tag: ['latticino'], unita: { cucchiaio: 5, cucchiaino: 2 } },
@@ -101,16 +101,16 @@ ALIMENTI_BASE.push(
   // Carne bianca
   _A('cosce-pollo', 'Cosce di pollo (senza pelle)', ['cosce di pollo', 'coscia di pollo', 'sovracosce', 'sovracoscia', 'sovraccoscio', 'sovraccosce', 'sovraccoscia', 'sovraccoscio di pollo', 'sovracoscia di pollo', 'sovracosce di pollo', 'sovraccosce di pollo', 'fusi di pollo', 'fuso di pollo', 'coscia', 'cosce'], 121, 19.7, 0, 0, 95, 200, ['carne-bianca'], { pezzo: 120 }),
   _A('ali-pollo', 'Ali di pollo', ['ali di pollo', 'alette', 'alette di pollo'], 203, 18.3, 0, 0, 73, 200, ['carne-bianca'], { pezzo: 35 }),
-  _A('macinato-tacchino', 'Macinato di tacchino', ['macinato di tacchino', 'macinato di pollo', 'macinato bianco'], 148, 19.7, 0, 0, 70, 150, ['carne-bianca']),
+  _A('macinato-tacchino', 'Macinato di tacchino', ['macinato di tacchino', 'macinato di pollo', 'macinato bianco', 'hamburger di pollo', 'hamburger di tacchino', 'burger di pollo', 'polpette di pollo'], 148, 19.7, 0, 0, 70, 150, ['carne-bianca']),
   _A('coniglio', 'Coniglio', ['coniglio'], 114, 21.2, 0, 0, 49, 200, ['carne-bianca']),
   _A('tacchino-affettato', 'Fesa di tacchino affettata', ['fesa di tacchino affettata', 'affettato di tacchino', 'petto di tacchino affettato'], 100, 20, 1, 0, 900, 50, ['carne-bianca', 'processato'], { fetta: 10 }),
   _A('cotoletta-pollo', 'Cotoletta di pollo impanata', ['cotoletta', 'cotoletta di pollo', 'cotoletta impanata', 'pollo impanato', 'nuggets'], 230, 16, 12, 1, 400, 150, ['carne-bianca'], { pezzo: 120 }),
   _A('wurstel', 'Würstel', ['wurstel', 'würstel', 'hot dog', 'wurstel di pollo'], 250, 13, 2, 0, 900, 100, ['processato'], { pezzo: 50 }),
 
   // Carne rossa
-  _A('lonza', 'Lonza di maiale', ['lonza', 'arista', 'braciola di maiale', 'maiale', 'lombata di maiale', 'filetto di maiale'], 146, 21, 0, 0, 55, 180, ['carne-rossa'], { fetta: 120 }),
+  _A('lonza', 'Lonza di maiale', ['lonza', 'arista', 'maiale', 'lombata di maiale', 'carre di maiale', 'arrosto di maiale', 'arista di maiale', 'lonza di maiale'], 146, 21, 0, 0, 55, 180, ['carne-rossa'], { fetta: 120 }),
   _A('vitello', 'Vitello (fesa)', ['vitello', 'fettina di vitello', 'scaloppine', 'fesa di vitello'], 109, 21, 0, 0, 80, 150, ['carne-rossa'], { fetta: 100 }),
-  _A('agnello', 'Agnello', ['agnello', 'costolette di agnello', 'abbacchio'], 159, 20, 0, 0, 70, 200, ['carne-rossa']),
+  _A('agnello', 'Agnello', ['agnello', 'abbacchio', 'cosciotto di agnello', 'spalla di agnello', 'agnello al forno'], 159, 20, 0, 0, 70, 200, ['carne-rossa']),
   _A('cavallo', 'Carne di cavallo', ['cavallo', 'carne di cavallo', 'pesto di cavallo'], 133, 21.4, 0, 0, 53, 150, ['carne-rossa']),
   _A('fegato', 'Fegato di vitello', ['fegato', 'fegato di vitello'], 135, 20, 4, 0, 70, 150, ['carne-rossa']),
   _A('roast-beef', 'Roast beef', ['roast beef', 'roastbeef', 'rosbif'], 150, 26, 0.5, 0, 500, 80, ['carne-rossa', 'processato'], { fetta: 15 }),
@@ -307,6 +307,63 @@ ALIMENTI_BASE.push(
   _A('prosecco', 'Prosecco / spumante', ['prosecco', 'spumante', 'bollicine', 'champagne'], 78, 0.1, 1.5, 0, 5, 125, [], { pezzo: 125, bicchiere: 125, calice: 125 }),
   _A('superalcolico', 'Superalcolico (40%)', ['gin', 'vodka', 'whisky', 'rum', 'grappa', 'amaro', 'superalcolico'], 231, 0, 0, 0, 1, 40, [], { pezzo: 40, bicchiere: 40, bicchierino: 40 }),
   _A('spritz', 'Spritz', ['spritz', 'aperol spritz', 'aperitivo'], 115, 0, 11, 0, 5, 200, [], { bicchiere: 200, pezzo: 200 }),
+);
+
+// — Carni: tagli specifici (valori per 100 g a crudo, parte edibile).
+ALIMENTI_BASE.push(
+  // Pollo e pollame
+  _A('pollo-intero', 'Pollo intero (con pelle)', ['pollo intero', 'pollo con pelle', 'pollo arrosto', 'pollo allo spiedo', 'galletto', 'pollo ruspante'], 171, 19, 0, 0, 70, 250, ['carne-bianca']),
+  _A('cosce-pollo-pelle', 'Cosce di pollo (con pelle)', ['cosce di pollo con pelle', 'coscia di pollo con pelle', 'fusi con pelle', 'sovracosce con pelle', 'cosce con pelle'], 200, 18, 0, 0, 80, 200, ['carne-bianca'], { pezzo: 150 }),
+  _A('petto-pollo-pelle', 'Petto di pollo (con pelle)', ['petto di pollo con pelle', 'petto con pelle'], 172, 20.9, 0, 0, 63, 200, ['carne-bianca']),
+  _A('fegatini', 'Fegatini di pollo', ['fegatini', 'fegatini di pollo', 'fegato di pollo'], 119, 16.9, 0.7, 0, 71, 100, ['carne-bianca']),
+  _A('durelli', 'Durelli di pollo', ['durelli', 'ventrigli', 'durelli di pollo'], 94, 17.7, 0, 0, 69, 150, ['carne-bianca']),
+  _A('coscia-tacchino', 'Coscia di tacchino', ['coscia di tacchino', 'fusello di tacchino', 'sovracoscia di tacchino', 'cosce di tacchino'], 120, 19.5, 0, 0, 80, 200, ['carne-bianca']),
+  _A('faraona', 'Faraona', ['faraona'], 135, 20.6, 0, 0, 69, 250, ['carne-bianca']),
+  _A('anatra', "Petto d'anatra", ['anatra', 'petto d anatra', 'petto di anatra', 'anatra all arancia'], 123, 23.5, 0, 0, 105, 200, ['carne-bianca']),
+  _A('quaglia', 'Quaglia', ['quaglia', 'quaglie'], 134, 21.8, 0, 0, 53, 200, ['carne-bianca'], { pezzo: 100 }),
+  _A('fagiano', 'Fagiano', ['fagiano'], 133, 23.6, 0, 0, 40, 200, ['carne-bianca']),
+  _A('pollo-affettato', 'Petto di pollo affettato', ['petto di pollo affettato', 'affettato di pollo', 'pollo arrosto affettato', 'pollo affettato'], 105, 19, 1.5, 0, 900, 50, ['carne-bianca', 'processato'], { fetta: 10 }),
+  _A('salsiccia-pollo', 'Salsiccia di pollo/tacchino', ['salsiccia di pollo', 'salsiccia di tacchino', 'salsiccia bianca'], 170, 16, 2, 0, 800, 150, ['carne-bianca', 'processato'], { pezzo: 80 }),
+  _A('cordon-bleu', 'Cordon bleu', ['cordon bleu', 'cordon blue'], 250, 15, 16, 1, 600, 120, ['carne-bianca', 'processato'], { pezzo: 120 }),
+
+  // Maiale
+  _A('filetto-maiale', 'Filetto di maiale', ['filetto di maiale', 'filetto maiale', 'filettino di maiale', 'filetto di suino'], 120, 21, 0, 0, 50, 180, ['carne-rossa']),
+  _A('braciola-maiale', 'Braciola / costoletta di maiale', ['braciola di maiale', 'braciole di maiale', 'costoletta di maiale', 'costolette di maiale', 'braciola', 'bistecca di maiale', 'nodino di maiale'], 172, 20, 0, 0, 55, 200, ['carne-rossa'], { pezzo: 200 }),
+  _A('costine', 'Costine di maiale', ['costine', 'costine di maiale', 'costicine', 'spuntature', 'puntine', 'ribs', 'costolette di maiale alla griglia'], 277, 15.5, 0, 0, 81, 250, ['carne-rossa']),
+  _A('spalla-maiale', 'Spalla di maiale', ['spalla di maiale', 'capocollo fresco', 'coppa di maiale fresca', 'pulled pork', 'maiale sfilacciato', 'arrosto di spalla'], 186, 17.2, 0, 0, 72, 200, ['carne-rossa']),
+  _A('pancia-maiale', 'Pancia di maiale', ['pancia di maiale', 'pancetta fresca', 'pork belly', 'pancia'], 518, 9.3, 0, 0, 32, 150, ['carne-rossa', 'grasso']),
+  _A('stinco', 'Stinco di maiale', ['stinco', 'stinco di maiale', 'stinco al forno'], 185, 18, 0, 0, 70, 300, ['carne-rossa']),
+  _A('macinato-maiale', 'Macinato di maiale', ['macinato di maiale', 'carne trita di maiale', 'trito di maiale'], 263, 16.9, 0, 0, 56, 150, ['carne-rossa']),
+  _A('macinato-misto', 'Macinato misto (manzo e maiale)', ['macinato misto', 'macinato manzo e maiale', 'carne macinata mista'], 220, 18.5, 0, 0, 60, 150, ['carne-rossa']),
+  _A('cotechino', 'Cotechino / zampone', ['cotechino', 'zampone'], 320, 18, 1, 0, 900, 150, ['carne-rossa', 'processato']),
+  _A('porchetta', 'Porchetta', ['porchetta', 'porchetta di ariccia', 'panino con porchetta'], 270, 22, 0, 0, 900, 100, ['carne-rossa', 'processato'], { fetta: 30 }),
+  _A('lardo', 'Lardo', ['lardo', 'lardo di colonnata'], 800, 3, 0, 0, 1500, 15, ['carne-rossa', 'processato', 'grasso'], { fetta: 5 }),
+  _A('culatello', 'Culatello', ['culatello', 'fiocco di prosciutto'], 260, 30, 0, 0, 1900, 50, ['carne-rossa', 'processato'], { fetta: 10 }),
+  _A('nduja', "'Nduja", ['nduja', 'ndujia'], 480, 12, 1, 0, 1500, 20, ['carne-rossa', 'processato'], { cucchiaino: 8 }),
+
+  // Manzo, vitello
+  _A('filetto-manzo', 'Filetto di manzo', ['filetto di manzo', 'filetto', 'medaglione di manzo', 'tournedos', 'filetto di vitellone'], 127, 20.5, 0, 0, 52, 180, ['carne-rossa']),
+  _A('controfiletto', 'Controfiletto / entrecôte', ['controfiletto', 'entrecote', 'lombata di manzo', 'roastbeef crudo', 'sirloin', 'tagliata', 'tagliata di manzo'], 165, 21, 0, 0, 55, 220, ['carne-rossa']),
+  _A('costata', 'Costata / fiorentina', ['costata', 'costata di manzo', 'fiorentina', 'bistecca alla fiorentina', 't-bone', 'ribeye', 'bistecca con osso'], 220, 19, 0, 0, 55, 400, ['carne-rossa']),
+  _A('manzo-spezzatino', 'Manzo da spezzatino / spalla', ['carne per spezzatino', 'spalla di manzo', 'cappello del prete', 'reale di manzo', 'polpa di manzo', 'brasato', 'arrosto di manzo', 'stracotto'], 150, 20, 0, 0, 60, 200, ['carne-rossa']),
+  _A('muscolo-manzo', 'Muscolo / ossobuco', ['muscolo di manzo', 'muscolo', 'geretto', 'ossobuco', 'ossibuchi', 'stinco di vitello'], 120, 21, 0, 0, 60, 250, ['carne-rossa']),
+  _A('biancostato', 'Biancostato / punta di petto', ['biancostato', 'punta di petto', 'brisket', 'carne da bollito', 'bollito', 'bollito misto', 'lesso di manzo'], 230, 18, 0, 0, 60, 250, ['carne-rossa']),
+  _A('macinato-magro', 'Macinato di manzo magro (5%)', ['macinato magro', 'macinato di manzo magro', 'macinato 5%', 'macinato extra magro'], 137, 21.4, 0, 0, 66, 150, ['carne-rossa']),
+  _A('costoletta-vitello', 'Costoletta / nodino di vitello', ['costoletta di vitello', 'nodino di vitello', 'lombata di vitello', 'braciola di vitello'], 140, 20, 0, 0, 80, 250, ['carne-rossa']),
+  _A('trippa', 'Trippa', ['trippa', 'trippa alla romana', 'lampredotto'], 85, 12, 0, 0, 97, 200, ['carne-rossa']),
+  _A('lingua', 'Lingua di manzo', ['lingua', 'lingua di manzo', 'lingua di vitello'], 224, 14.7, 0, 0, 69, 150, ['carne-rossa']),
+  _A('carne-scatola', 'Carne in scatola', ['carne in scatola', 'simmenthal', 'manzo in gelatina'], 100, 16, 0.5, 0, 900, 90, ['carne-rossa', 'processato'], { scatoletta: 90 }),
+  _A('spiedini', 'Spiedini di carne misti', ['spiedini', 'spiedino', 'spiedini di carne', 'spiedini misti'], 190, 20, 1, 0.5, 300, 150, ['carne-rossa'], { pezzo: 50 }),
+
+  // Agnello, capretto, ovini
+  _A('costolette-agnello', "Costolette d'agnello", ['costolette di agnello', 'costolette d agnello', 'scottadito', 'agnello scottadito', 'costine di agnello'], 230, 17, 0, 0, 70, 200, ['carne-rossa']),
+  _A('capretto', 'Capretto', ['capretto'], 122, 20.6, 0, 0, 82, 200, ['carne-rossa']),
+  _A('arrosticini', 'Arrosticini (pecora)', ['arrosticini', 'arrosticino', 'pecora', 'montone', 'castrato'], 220, 18, 0, 0, 70, 200, ['carne-rossa'], { pezzo: 25 }),
+
+  // Selvaggina
+  _A('cinghiale', 'Cinghiale', ['cinghiale', 'ragu di cinghiale crudo'], 122, 21.5, 0, 0, 70, 200, ['carne-rossa']),
+  _A('cervo', 'Cervo / capriolo', ['cervo', 'capriolo', 'daino', 'selvaggina'], 120, 23, 0, 0, 50, 200, ['carne-rossa']),
+  _A('lepre', 'Lepre', ['lepre'], 113, 21.8, 0, 0, 50, 200, ['carne-rossa']),
 );
 
 // Grammi per le misure casalinghe quando l'alimento non ne definisce una propria.

@@ -338,7 +338,7 @@ const PIATTI_BASE = [
   // — Carne
   _P('p-pollo-cacciatora', 'Pollo alla cacciatora', ['pollo in umido'], [['cosce-pollo', 250], ['passata', 120], ['olive', 15], ['cipolla', 30], ['olio-evo', 10]]),
   _P('p-pollo-patate', 'Pollo e patate al forno', ['pollo e patate', 'pollo con patate'], [['cosce-pollo', 250], ['patate', 200], ['olio-evo', 15]]),
-  _P('p-spezzatino', 'Spezzatino con patate', ['spezzatino', 'spezzatino di manzo'], [['manzo', 200], ['patate', 150], ['passata', 50], ['carote', 50], ['cipolla', 30], ['olio-evo', 10]]),
+  _P('p-spezzatino', 'Spezzatino con patate', ['spezzatino', 'spezzatino di manzo'], [['manzo-spezzatino', 200], ['patate', 150], ['passata', 50], ['carote', 50], ['cipolla', 30], ['olio-evo', 10]]),
   _P('p-arrosto-vitello', 'Arrosto di vitello', ['arrosto di vitello al forno'], [['vitello', 180], ['olio-evo', 10]]),
   _P('p-saltimbocca', 'Saltimbocca alla romana', ['saltimbocca'], [['vitello', 150], ['crudo', 30], ['burro', 10], ['farina', 5]]),
   _P('p-involtini', 'Involtini di carne', ['involtini', 'involtini prosciutto e formaggio'], [['vitello', 150], ['cotto', 30], ['asiago', 20], ['olio-evo', 10]]),
