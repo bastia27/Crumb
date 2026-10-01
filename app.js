@@ -7,7 +7,7 @@
    ================================================================ */
 
 const LS_KEY = 'crumb:v1';
-const APP_VERSION = 12; // da allineare con ?v= in index.html e CACHE in sw.js
+const APP_VERSION = 13; // da allineare con ?v= in index.html e CACHE in sw.js
 const PASTI = [
   { id: 'colazione', nome: 'Colazione' },
   { id: 'pranzo', nome: 'Pranzo' },
@@ -1760,6 +1760,7 @@ function viewPeso() {
     <h2>Peso di stamattina</h2>
     <div class="row"><input class="inp num" id="wIn" inputmode="decimal" placeholder="es. 82,4" value="${oggi != null ? String(oggi).replace('.', ',') : ''}" style="flex:1"><button class="btn primary" id="wSave">${oggi != null ? 'Aggiorna' : 'Salva'}</button></div>
     <div class="row" style="margin-top:8px"><span class="small muted">Data</span><input class="inp" type="date" id="wDate" value="${k}" max="${k}" style="flex:1;min-height:40px"></div>
+    <button class="linkbtn small" data-act="incolla-pesi" style="margin-top:6px">Incolla più pesate (data, peso)</button>
   </section>`;
   h += `<section class="card"><div class="row" style="margin-bottom:8px"><h2 style="margin:0">Andamento</h2><span class="spacer"></span></div>
     <div class="seg" id="rangeSeg">${[[30, '30 gg'], [90, '90 gg'], [365, '1 anno'], [0, 'Tutto']].map(([v, l]) => `<button data-r="${v}" aria-pressed="${ui.pesoRange === v}">${l}</button>`).join('')}</div>
@@ -1771,6 +1772,66 @@ function viewPeso() {
     h += `<section class="card"><h2>Pesate</h2><div class="list">${keys.map((kk) => `<button class="li" data-wdel="${kk}"><span class="nm">${labelDay(kk, false)}<small class="num">media 7 gg ${fmt(weightMA(kk), 1)} kg</small></span><b class="num">${fmt(S.pesi[kk], 1)}</b></button>`).join('')}</div></section>`;
   }
   return h;
+}
+
+// Testo incollato → pesate. Accetta "2026-08-17,112.0", "17/08/2026;112,0", "17.08.26 112", una per riga.
+function parsePesate(text) {
+  const ok = [], scartate = [];
+  const oggi = todayKey();
+  for (const raw of String(text).split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    let k = null, rest = '';
+    let m = line.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (m) k = `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+    else if ((m = line.match(/(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})/))) {
+      const y = m[3].length === 2 ? `20${m[3]}` : m[3];
+      k = `${y}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+    }
+    if (m) rest = line.slice(m.index + m[0].length);
+    const wm = rest.match(/(\d{2,3}(?:[.,]\d{1,2})?)/);
+    const w = wm ? parseFloat(wm[1].replace(',', '.')) : null;
+    const d = k ? parseKey(k) : null;
+    if (!k || !d || dkey(d) !== k || k > oggi || w == null || w < 25 || w > 350) {
+      scartate.push(line);
+      continue;
+    }
+    ok.push({ k, w: r1(w) });
+  }
+  const byDate = new Map(ok.map((x) => [x.k, x.w])); // a parità di data vale l'ultima riga
+  return { pesate: [...byDate].map(([k, w]) => ({ k, w })).sort((a, b) => (a.k < b.k ? -1 : 1)), scartate };
+}
+
+function openIncollaPesi() {
+  openSheet(`<h2>Incolla pesate</h2>
+    <p class="small muted">Una pesata per riga: data e peso. Va bene anche copiato da un foglio di calcolo o con l'intestazione.</p>
+    <textarea class="inp" id="pIn" rows="8" placeholder="2026-09-30,105.8&#10;01/10/2026;105,4" autocapitalize="off" spellcheck="false"></textarea>
+    <p class="small num" id="pPrev"></p>
+    <div class="sheet-actions"><button class="btn" data-close>Annulla</button><button class="btn primary" id="pOk" disabled>Importa</button></div>`, (el) => {
+    let res = { pesate: [], scartate: [] };
+    const upd = () => {
+      res = parsePesate($('#pIn', el).value);
+      const n = res.pesate.length;
+      const sovr = res.pesate.filter((x) => S.pesi[x.k] != null && S.pesi[x.k] !== x.w).length;
+      $('#pPrev', el).innerHTML = n
+        ? `<b>${n} pesate</b> dal ${labelDay(res.pesate[0].k, false)} al ${labelDay(res.pesate[n - 1].k, false)}${sovr ? ` · <span class="txt-bad">${sovr} sostituiscono un valore già presente</span>` : ''}${res.scartate.length ? `<br><span class="muted">Righe ignorate: ${res.scartate.length} (${esc(res.scartate.slice(0, 2).join(' · '))}${res.scartate.length > 2 ? '…' : ''})</span>` : ''}`
+        : res.scartate.length ? `<span class="txt-bad">Nessuna riga valida.</span>` : '';
+      $('#pOk', el).disabled = !n;
+    };
+    $('#pIn', el).addEventListener('input', upd);
+    $('#pOk', el).addEventListener('click', () => {
+      const prima = structuredClone(S.pesi), pesoPrima = S.settings.peso;
+      for (const x of res.pesate) S.pesi[x.k] = x.w;
+      const last = latestWeightKey();
+      if (last) S.settings.peso = S.pesi[last];
+      if (!ui.pesoRange || res.pesate[0].k < addDays(todayKey(), -29)) ui.pesoRange = 0;
+      save();
+      closeSheet();
+      render();
+      toast(`${res.pesate.length} pesate importate`, 'Annulla', () => { S.pesi = prima; S.settings.peso = pesoPrima; save(); render(); });
+    });
+    setTimeout(() => $('#pIn', el).focus(), 60);
+  });
 }
 
 function weightChart(range) {
@@ -2448,6 +2509,7 @@ function bindView(main) {
       case 'save-preset': return savePreset(t.dataset.pasto);
       case 'export-day': return copyText(exportDay(ui.day));
       case 'export-week': return copyText(exportWeek(ui.weekEnd));
+      case 'incolla-pesi': return openIncollaPesi();
       case 'usa-fabbisogno': {
         const m = misuraFabbisogno();
         if (!m.ok) return;
@@ -2549,4 +2611,4 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 render();
 
 // Esposto per i test in console / headless.
-window.CRUMB = { misuraFabbisogno, analyzeRecipe, inCasa, dispensaAdd, parseInput, voto, stasera, dailyTip, weekStats, ruleStatus, recipeTags, recipePortion, weightMA, findCandidates, exportDay, exportWeek, get state() { return S; } };
+window.CRUMB = { parsePesate, misuraFabbisogno, analyzeRecipe, inCasa, dispensaAdd, parseInput, voto, stasera, dailyTip, weekStats, ruleStatus, recipeTags, recipePortion, weightMA, findCandidates, exportDay, exportWeek, get state() { return S; } };
