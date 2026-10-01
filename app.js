@@ -7,7 +7,7 @@
    ================================================================ */
 
 const LS_KEY = 'crumb:v1';
-const APP_VERSION = 13; // da allineare con ?v= in index.html e CACHE in sw.js
+const APP_VERSION = 14; // da allineare con ?v= in index.html e CACHE in sw.js
 const PASTI = [
   { id: 'colazione', nome: 'Colazione' },
   { id: 'pranzo', nome: 'Pranzo' },
@@ -1802,6 +1802,99 @@ function parsePesate(text) {
   return { pesate: [...byDate].map(([k, w]) => ({ k, w })).sort((a, b) => (a.k < b.k ? -1 : 1)), scartate };
 }
 
+// Testo incollato → pasti di giorni passati. Una riga per pasto: data;pasto;alimenti.
+const PASTO_ALIAS = { colazione: 'colazione', pranzo: 'pranzo', cena: 'cena', spuntino: 'spuntini', spuntini: 'spuntini', merenda: 'spuntini', snack: 'spuntini', 'spuntino mattina': 'spuntini', 'spuntino pomeriggio': 'spuntini' };
+function leggiData(txt) {
+  let m = txt.match(/(\d{4})-(\d{1,2})-(\d{1,2})/), k = null;
+  if (m) k = `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+  else if ((m = txt.match(/(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})/))) k = `${m[3].length === 2 ? `20${m[3]}` : m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  return k && dkey(parseKey(k)) === k && k <= todayKey() ? k : null;
+}
+function parsePasti(text) {
+  const righe = [], scartate = [];
+  for (const raw of String(text).split(/\r?\n/)) {
+    const line = raw.trim().replace(/^\|/, '').replace(/\|$/, '');
+    if (!line || /^[-|:\s]+$/.test(line)) continue;
+    const parts = line.split(/\s*[;\t|]\s*/);
+    const k = parts.length >= 3 ? leggiData(parts[0]) : null;
+    const pasto = parts.length >= 3 ? PASTO_ALIAS[norm(parts[1])] : null;
+    const testo = parts.slice(2).join(', ').trim();
+    if (!k || !pasto || !testo) {
+      scartate.push(line);
+      continue;
+    }
+    const rows = parseInput(testo);
+    for (const r of rows) {
+      // In importazione non si chiede riga per riga: si prende il candidato migliore e lo si segnala.
+      if (!r.pick && r.cands[0] && r.cands[0].score >= 0.6) {
+        setRowPick(r, r.cands[0]);
+        r.incerto = true;
+      }
+      if (r.stato === 'amb-qty') r.incerto = true;
+    }
+    righe.push({ k, pasto, testo, rows });
+  }
+  return { righe, scartate };
+}
+
+function openIncollaPasti() {
+  openSheet(`<h2>Incolla pasti passati</h2>
+    <p class="small muted">Una riga per pasto: <b>data;pasto;alimenti</b>. Pasto = colazione, pranzo, spuntini o cena. Alimenti come li scriveresti in Aggiungi.</p>
+    <textarea class="inp" id="mIn" rows="8" placeholder="2026-09-20;pranzo;petto di pollo 300 g, cicoria 200 g, olio evo 10 g" autocapitalize="off" spellcheck="false"></textarea>
+    <div id="mPrev" class="small" style="margin-top:10px"></div>
+    <div class="sheet-actions"><button class="btn" data-close>Annulla</button><button class="btn primary" id="mOk" disabled>Importa</button></div>`, (el) => {
+    let res = { righe: [], scartate: [] };
+    let sostituisci = false;
+    const upd = () => {
+      res = parsePasti($('#mIn', el).value);
+      const giorni = [...new Set(res.righe.map((r) => r.k))].sort();
+      const presenti = giorni.filter(dayHasData);
+      const voci = res.righe.flatMap((r) => r.rows);
+      const ok = voci.filter((r) => r.pick);
+      const incerti = ok.filter((r) => r.incerto);
+      const miss = voci.filter((r) => !r.pick);
+      if (!res.righe.length) {
+        $('#mPrev', el).innerHTML = res.scartate.length ? '<span class="txt-bad">Nessuna riga nel formato data;pasto;alimenti.</span>' : '';
+        $('#mOk', el).disabled = true;
+        return;
+      }
+      const perGiorno = giorni.map((k) => {
+        const t = sumN(res.righe.filter((r) => r.k === k).flatMap((r) => r.rows.flatMap(rowToVoci)).map(voceNutr));
+        const skip = presenti.includes(k) && !sostituisci;
+        return `<li class="num${skip ? ' muted' : ''}">${labelDay(k, false)}: ${fmt(t.kcal)} kcal · P ${fmt(t.p)} · C ${fmt(t.cn)}${skip ? ' · già presente, saltato' : ''}</li>`;
+      }).join('');
+      $('#mPrev', el).innerHTML = `<b class="num">${giorni.length} giorni, ${res.righe.length} pasti, ${ok.length} alimenti riconosciuti</b>
+        <ul class="plist">${perGiorno}</ul>
+        ${incerti.length ? `<div class="pbox warn"><b>Da controllare (${incerti.length})</b>${incerti.slice(0, 12).map((r) => `<div>«${esc(r.src)}» → ${esc(r.pick.item.nome)} ${fmt(r.g)} g</div>`).join('')}${incerti.length > 12 ? `<div>… e altri ${incerti.length - 12}</div>` : ''}</div>` : ''}
+        ${miss.length ? `<div class="pbox bad"><b>Non riconosciuti, verranno saltati (${miss.length})</b>${miss.slice(0, 12).map((r) => `<div>«${esc(r.src)}»</div>`).join('')}<div class="muted">Correggi il testo qui sopra o crea l'alimento in Impostazioni.</div></div>` : ''}
+        ${res.scartate.length ? `<div class="muted">Righe ignorate: ${res.scartate.length} (${esc(res.scartate.slice(0, 2).join(' · '))})</div>` : ''}
+        ${presenti.length ? `<label class="tagchk" style="margin-top:8px"><input type="checkbox" id="mRep" ${sostituisci ? 'checked' : ''}> Sostituisci ${presenti.length === 1 ? 'il giorno già presente' : `i ${presenti.length} giorni già presenti`}</label>` : ''}`;
+      $('#mRep', el)?.addEventListener('change', (e) => { sostituisci = e.target.checked; upd(); });
+      $('#mOk', el).disabled = !ok.length;
+      $('#mOk', el).textContent = (() => { const n = giorni.length - (sostituisci ? 0 : presenti.length); return `Importa ${n} ${n === 1 ? 'giorno' : 'giorni'}`; })();
+    };
+    $('#mIn', el).addEventListener('input', upd);
+    $('#mOk', el).addEventListener('click', () => {
+      const prima = structuredClone(S.giorni);
+      const giorni = [...new Set(res.righe.map((r) => r.k))];
+      const presenti = new Set(giorni.filter(dayHasData));
+      for (const k of giorni) if (presenti.has(k) && sostituisci) delete S.giorni[k];
+      let n = 0;
+      for (const r of res.righe) {
+        if (presenti.has(r.k) && !sostituisci) continue;
+        const d = getDay(r.k, true);
+        for (const row of r.rows) for (const v of rowToVoci(row)) { d.pasti[r.pasto].push(v); n++; }
+      }
+      for (const k of giorni) cleanupDay(k);
+      save();
+      closeSheet();
+      setTab('storico');
+      toast(`${n} alimenti importati`, 'Annulla', () => { S.giorni = prima; save(); render(); });
+    });
+    setTimeout(() => $('#mIn', el).focus(), 60);
+  });
+}
+
 function openIncollaPesi() {
   openSheet(`<h2>Incolla pesate</h2>
     <p class="small muted">Una pesata per riga: data e peso. Va bene anche copiato da un foglio di calcolo o con l'intestazione.</p>
@@ -2171,9 +2264,10 @@ function viewSettimana() {
 function viewStorico() {
   header('Storico', `${Object.keys(S.giorni).filter(dayHasData).length} giorni registrati`, false);
   const keys = Object.keys(S.giorni).filter(dayHasData).sort().reverse();
-  if (!keys.length) return '<div class="card empty">Ancora nessun giorno registrato.</div>';
+  const incolla = '<button class="btn ghost block" data-act="incolla-pasti" style="margin-bottom:12px">Incolla pasti passati (data;pasto;alimenti)</button>';
+  if (!keys.length) return incolla + '<div class="card empty">Ancora nessun giorno registrato.</div>';
   const st = S.settings;
-  let h = '<section class="card" style="padding:4px 16px">';
+  let h = incolla + '<section class="card" style="padding:4px 16px">';
   let lastWeek = null;
   for (const k of keys) {
     const ws = weekStart(k);
@@ -2510,6 +2604,7 @@ function bindView(main) {
       case 'export-day': return copyText(exportDay(ui.day));
       case 'export-week': return copyText(exportWeek(ui.weekEnd));
       case 'incolla-pesi': return openIncollaPesi();
+      case 'incolla-pasti': return openIncollaPasti();
       case 'usa-fabbisogno': {
         const m = misuraFabbisogno();
         if (!m.ok) return;
@@ -2611,4 +2706,4 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 render();
 
 // Esposto per i test in console / headless.
-window.CRUMB = { parsePesate, misuraFabbisogno, analyzeRecipe, inCasa, dispensaAdd, parseInput, voto, stasera, dailyTip, weekStats, ruleStatus, recipeTags, recipePortion, weightMA, findCandidates, exportDay, exportWeek, get state() { return S; } };
+window.CRUMB = { parsePasti, parsePesate, misuraFabbisogno, analyzeRecipe, inCasa, dispensaAdd, parseInput, voto, stasera, dailyTip, weekStats, ruleStatus, recipeTags, recipePortion, weightMA, findCandidates, exportDay, exportWeek, get state() { return S; } };
