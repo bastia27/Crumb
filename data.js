@@ -25,7 +25,7 @@ const ALIMENTI_BASE = [
   { id: 'gamberi', nome: 'Gamberi', alias: ['gamberi', 'gamberetti', 'mazzancolle'], kcal: 71, p: 13.6, cn: 0.9, f: 0, na: 146, porz: 150, tag: ['pesce'] },
 
   // — Carne rossa
-  { id: 'macinato-manzo', nome: 'Macinato di manzo', alias: ['macinato', 'macinato di manzo', 'carne macinata', 'hamburger', 'burger'], kcal: 176, p: 20, cn: 0, f: 0, na: 66, porz: 150, tag: ['carne-rossa'] },
+  { id: 'macinato-manzo', nome: 'Macinato di manzo', alias: ['macinato', 'macinato di manzo', 'carne macinata', 'hamburger', 'burger', 'hamburger di scottona', 'hamburger di manzo', 'scottona', 'macinato di scottona'], kcal: 176, p: 20, cn: 0, f: 0, na: 66, porz: 150, tag: ['carne-rossa'] },
   { id: 'manzo', nome: 'Manzo magro (bistecca)', alias: ['manzo', 'bistecca', 'fettina di manzo', 'tagliata', 'filetto di manzo'], kcal: 129, p: 21.5, cn: 0, f: 0, na: 60, porz: 180, tag: ['carne-rossa'], unita: { fetta: 120 } },
 
   // — Salumi (processati)
@@ -64,7 +64,7 @@ const ALIMENTI_BASE = [
   { id: 'melanzane', nome: 'Melanzane', alias: ['melanzane', 'melanzana'], kcal: 25, p: 1, cn: 2.9, f: 3, na: 2, porz: 200, tag: ['verdura'], unita: { pezzo: 300 } },
   { id: 'cicoria', nome: 'Cicoria', alias: ['cicoria', 'catalogna', 'puntarelle'], kcal: 23, p: 1.7, cn: 0.7, f: 4, na: 45, porz: 200, tag: ['verdura'] },
   { id: 'spinaci', nome: 'Spinaci', alias: ['spinaci', 'spinacio'], kcal: 23, p: 2.9, cn: 1.4, f: 2.2, na: 79, porz: 200, tag: ['verdura'] },
-  { id: 'broccoli', nome: 'Broccoli', alias: ['broccoli', 'broccolo', 'cime di rapa'], kcal: 34, p: 2.8, cn: 4.4, f: 2.6, na: 33, porz: 200, tag: ['verdura'] },
+  { id: 'broccoli', nome: 'Broccoli', alias: ['broccoli', 'broccolo', 'broccoletti', 'broccoletto', 'cime di rapa', 'friarielli'], kcal: 34, p: 2.8, cn: 4.4, f: 2.6, na: 33, porz: 200, tag: ['verdura'] },
   { id: 'cavolfiore', nome: 'Cavolfiore', alias: ['cavolfiore', 'cavolfiori'], kcal: 25, p: 1.9, cn: 3, f: 2, na: 30, porz: 200, tag: ['verdura'] },
   { id: 'misticanza', nome: 'Misticanza', alias: ['misticanza', 'insalata', 'lattuga', 'rucola', 'valeriana', 'songino'], kcal: 17, p: 1.4, cn: 1.2, f: 1.8, na: 28, porz: 80, tag: ['verdura'] },
   { id: 'finocchio', nome: 'Finocchio', alias: ['finocchio', 'finocchi'], kcal: 31, p: 1.2, cn: 4.2, f: 3.1, na: 52, porz: 200, tag: ['verdura'], unita: { pezzo: 250 } },
@@ -203,6 +203,8 @@ ALIMENTI_BASE.push(
   _A('ravanelli', 'Ravanelli', ['ravanelli', 'ravanello'], 16, 0.7, 1.8, 1.6, 39, 100, ['verdura']),
   _A('germogli', 'Germogli di soia', ['germogli', 'germogli di soia'], 30, 3, 4.1, 1.8, 6, 100, ['verdura']),
   _A('barbabietola', 'Barbabietola cotta', ['barbabietola', 'barbabietole', 'rapa rossa'], 44, 1.7, 8, 2, 77, 100, ['verdura'], { pezzo: 100 }),
+  _A('cetriolini', 'Cetriolini sottaceto', ['cetriolini', 'cetriolini sottaceto', 'sottaceti', 'giardiniera'], 12, 0.5, 1.5, 1, 900, 30, ['verdura', 'processato'], { pezzo: 10 }),
+  _A('pomodori-secchi-olio', "Pomodori secchi sott'olio (sgocciolati)", ['pomodori secchi sott olio', 'pomodori secchi', 'pomodorini secchi'], 213, 5.1, 17.5, 5.8, 266, 30, ['verdura', 'grasso', 'processato'], { pezzo: 6 }),
   _A('crauti', 'Crauti', ['crauti'], 19, 0.9, 1.4, 2.9, 661, 100, ['verdura', 'processato']),
   _A('passata', 'Passata di pomodoro', ['passata', 'passata di pomodoro', 'sugo', 'sugo di pomodoro', 'pelati', 'polpa di pomodoro'], 24, 1.3, 3.7, 1.2, 10, 100, ['verdura'], { cucchiaio: 20 }),
   _A('minestrone', 'Minestrone di verdure', ['minestrone', 'zuppa di verdure', 'passato di verdure', 'vellutata'], 45, 2, 6, 2.5, 200, 250, ['verdura']),

@@ -7,7 +7,7 @@
    ================================================================ */
 
 const LS_KEY = 'crumb:v1';
-const APP_VERSION = 14; // da allineare con ?v= in index.html e CACHE in sw.js
+const APP_VERSION = 15; // da allineare con ?v= in index.html e CACHE in sw.js
 const PASTI = [
   { id: 'colazione', nome: 'Colazione' },
   { id: 'pranzo', nome: 'Pranzo' },
@@ -593,7 +593,14 @@ function segments(text) {
     if (/\s(e|con|ed)\s/i.test(seg)) {
       const whole = findCandidates(extractQty(seg).query)[0];
       if (!whole || whole.score < 0.9) {
-        seg.split(/\s(?:e|con|ed)\s/i).map((s) => s.trim()).filter(Boolean).forEach((s) => out.push(s));
+        const parts = seg.split(/\s(?:e|con|ed)\s/i).map((s) => s.trim()).filter(Boolean);
+        // "melanzane e zucchine 100 g": i grammi in fondo valgono per tutto il gruppo, divisi in parti uguali.
+        const qs = parts.map((p) => extractQty(p));
+        const last = qs[qs.length - 1].qty.find((q) => ['g', 'kg', 'hg'].includes(q.unit));
+        if (parts.length > 1 && last && qs.slice(0, -1).every((q) => !q.qty.length)) {
+          const tot = last.n * { g: 1, kg: 1000, hg: 100 }[last.unit];
+          qs.forEach((q) => out.push(`${q.query} ${Math.round(tot / parts.length)} g`));
+        } else parts.forEach((p) => out.push(p));
         continue;
       }
     }
@@ -711,6 +718,26 @@ function parseInput(text) {
       }
     }
     rows.push(row);
+  }
+  // Olio scritto a parte: i condimenti aggiunti in automatico da piatti e metodi di cottura si tolgono,
+  // altrimenti l'olio verrebbe contato due volte. Le ricette vere tengono la loro composizione.
+  const OLI = ['olio-evo', 'olio-semi', 'olio-cocco', 'burro'];
+  if (rows.some((r) => r.pick && !r.ings && OLI.includes(r.pick.item.id))) {
+    for (const r of rows) {
+      if (!r.ings || !r.pick.item.piatto) continue;
+      const prima = r.ings.length;
+      r.ings = r.ings.filter((x) => !OLI.includes(x.fid));
+      r.base = r.base?.filter((x) => !OLI.includes(x.fid));
+      if (r.ings.length < prima) {
+        // Piatto con peso dichiarato: il resto degli ingredienti torna a quel peso.
+        if (!r.pick.item.composto && r.g) {
+          const tot = r.ings.reduce((acc, x) => acc + x.g, 0);
+          if (tot > 0) r.ings.forEach((x) => { x.g = r0((x.g * r.g) / tot); });
+          r.base = structuredClone(r.ings);
+        }
+        r.nota = `${r.nota ? `${r.nota} · ` : ''}condimento già indicato a parte`;
+      }
+    }
   }
   return rows;
 }

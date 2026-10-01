@@ -348,6 +348,7 @@ const PIATTI_BASE = [
   _P('p-salsiccia-patate', 'Salsiccia e patate', ['salsicce e patate'], [['salsiccia', 150], ['patate', 200], ['olio-evo', 10]]),
   _P('p-hamburger-panino', 'Hamburger nel panino', ['panino con hamburger', 'cheeseburger', 'panino hamburger'], [['pane', 80], ['macinato-manzo', 150], ['provolone', 20], ['pomodori', 30], ['misticanza', 10], ['ketchup', 15]]),
   _P('p-carpaccio', 'Carpaccio di manzo', ['carpaccio', 'carpaccio rucola e grana'], [['manzo', 120], ['parmigiano', 15], ['misticanza', 30], ['olio-evo', 10]]),
+  _P('p-coniglio-pancetta', 'Coniglio con pancetta', ['coniglio alla pancetta', 'coniglio e pancetta', 'coniglio in padella con pancetta'], [['coniglio', 220], ['pancetta', 30], ['olio-evo', 10]]),
   _P('p-coniglio-cacciatora', 'Coniglio alla cacciatora', ['coniglio in umido'], [['coniglio', 250], ['passata', 100], ['olive', 15], ['olio-evo', 10]]),
 
   // — Pesce
