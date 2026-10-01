@@ -100,13 +100,13 @@ const RICETTE_BASE = [
     [['pollo', 500], ['cavolfiore', 400], ['panna', 60], ['cipolla', 80], ['olio-evo', 15]],
     ['Rosola la cipolla nell’olio, aggiungi il pollo a cubetti e 2 cucchiaini di curry.', 'Unisci le cimette di cavolfiore e mezzo bicchiere d’acqua.', 'Copri e cuoci 20 minuti, poi aggiungi la panna. Dura 3 giorni.']),
   _R('r-straccetti-rucola', 'Straccetti di pollo con rucola', 1, 12, [],
-    [['pollo', 250], ['misticanza', 80], ['olio-evo', 10], ['aceto-balsamico', 10]],
+    [['pollo', 250], ['rucola', 80], ['olio-evo', 10], ['aceto-balsamico', 10]],
     ['Taglia il pollo a listarelle sottili.', 'Saltalo in padella rovente con l’olio per 5–6 minuti.', 'Servi sulla rucola con l’aceto balsamico.']),
   _R('r-petto-tacchino-funghi', 'Tacchino ai funghi', 1, 25, [],
     [['tacchino', 250], ['funghi', 200], ['olio-evo', 10]],
     ['Trifola i funghi con olio e aglio per 8 minuti.', 'Aggiungi il tacchino a fette e cuoci 4 minuti per lato.', 'Prezzemolo e un filo d’acqua per legare.']),
   _R('r-tagliata-rucola', 'Tagliata di manzo con rucola e grana', 1, 15, [],
-    [['manzo', 220], ['misticanza', 60], ['parmigiano', 15], ['olio-evo', 10]],
+    [['controfiletto', 220], ['rucola', 60], ['parmigiano', 15], ['olio-evo', 10]],
     ['Scalda bene la piastra e cuoci la carne 3 minuti per lato.', 'Lasciala riposare 3 minuti e tagliala a fette.', 'Servi sulla rucola con scaglie di grana e olio.']),
   _R('r-hamburger-insalata', 'Hamburger al piatto con insalata', 1, 15, [],
     [['macinato-manzo', 200], ['scamorza', 30], ['misticanza', 100], ['olio-evo', 5]],
@@ -127,7 +127,7 @@ const RICETTE_BASE = [
     [['lonza', 200], ['broccoli', 250], ['olio-evo', 10]],
     ['Metti lonza e cimette di broccoli in teglia con olio, sale e rosmarino.', 'Forno a 200 °C per 25 minuti.', 'Lascia riposare la carne 5 minuti prima di tagliarla.']),
   _R('r-bresaola-rucola', 'Bresaola, rucola e grana', 1, 5, ['senza-cottura'],
-    [['bresaola', 80], ['misticanza', 60], ['parmigiano', 20], ['olio-evo', 10]],
+    [['bresaola', 80], ['rucola', 60], ['parmigiano', 20], ['olio-evo', 10]],
     ['Stendi la bresaola nel piatto.', 'Copri con rucola e scaglie di grana.', 'Olio e limone.']),
   _R('r-tartare', 'Tartare di manzo', 1, 10, ['senza-cottura'],
     [['manzo', 180], ['olio-evo', 10], ['senape', 5], ['misticanza', 50]],
@@ -219,7 +219,7 @@ const RICETTE_BASE = [
     [['pasta', 90], ['sardine', 150], ['finocchio', 100], ['uvetta', 10], ['olio-evo', 10]],
     ['Lessa il finocchio a pezzi e usa l’acqua per la pasta.', 'Rosola le sarde pulite nell’olio con il finocchio e l’uvetta.', 'Salta la pasta nel condimento.']),
   _R('r-orecchiette-cime', 'Orecchiette con cime di rapa', 1, 25, [],
-    [['pasta', 90], ['broccoli', 250], ['acciughe-olio', 8], ['olio-evo', 10]],
+    [['pasta', 90], ['cime-rapa', 250], ['acciughe-olio', 8], ['olio-evo', 10]],
     ['Cuoci cime di rapa e orecchiette nella stessa acqua.', 'Sciogli le acciughe nell’olio con aglio e peperoncino.', 'Scola e salta tutto in padella.']),
   _R('r-baccala-ceci', 'Baccalà con ceci e pomodoro', 2, 35, [],
     [['baccala', 400], ['ceci', 250], ['passata', 200], ['olio-evo', 15]],
@@ -344,10 +344,10 @@ const PIATTI_BASE = [
   _P('p-involtini', 'Involtini di carne', ['involtini', 'involtini prosciutto e formaggio'], [['vitello', 150], ['cotto', 30], ['asiago', 20], ['olio-evo', 10]]),
   _P('p-vitello-tonnato', 'Vitello tonnato', [], [['vitello', 150], ['maionese', 30], ['tonno-olio', 30]]),
   _P('p-fegato-veneziana', 'Fegato alla veneziana', [], [['fegato', 180], ['cipolla', 150], ['olio-evo', 15], ['burro', 5]]),
-  _P('p-salsiccia-friarielli', 'Salsiccia e friarielli', ['salsiccia e broccoli', 'salsiccia e cime di rapa', 'salsicce e friarielli'], [['salsiccia', 150], ['broccoli', 200], ['olio-evo', 10]]),
+  _P('p-salsiccia-friarielli', 'Salsiccia e friarielli', ['salsiccia e broccoli', 'salsiccia e cime di rapa', 'salsicce e friarielli'], [['salsiccia', 150], ['cime-rapa', 200], ['olio-evo', 10]]),
   _P('p-salsiccia-patate', 'Salsiccia e patate', ['salsicce e patate'], [['salsiccia', 150], ['patate', 200], ['olio-evo', 10]]),
   _P('p-hamburger-panino', 'Hamburger nel panino', ['panino con hamburger', 'cheeseburger', 'panino hamburger'], [['pane', 80], ['macinato-manzo', 150], ['provolone', 20], ['pomodori', 30], ['misticanza', 10], ['ketchup', 15]]),
-  _P('p-carpaccio', 'Carpaccio di manzo', ['carpaccio', 'carpaccio rucola e grana'], [['manzo', 120], ['parmigiano', 15], ['misticanza', 30], ['olio-evo', 10]]),
+  _P('p-carpaccio', 'Carpaccio di manzo', ['carpaccio', 'carpaccio rucola e grana'], [['manzo', 120], ['parmigiano', 15], ['rucola', 30], ['olio-evo', 10]]),
   _P('p-coniglio-pancetta', 'Coniglio con pancetta', ['coniglio alla pancetta', 'coniglio e pancetta', 'coniglio in padella con pancetta'], [['coniglio', 220], ['pancetta', 30], ['olio-evo', 10]]),
   _P('p-coniglio-cacciatora', 'Coniglio alla cacciatora', ['coniglio in umido'], [['coniglio', 250], ['passata', 100], ['olive', 15], ['olio-evo', 10]]),
 
@@ -385,3 +385,14 @@ const PIATTI_BASE = [
   _P('p-bruschetta', 'Bruschetta al pomodoro', ['bruschette', 'bruschetta'], [['pane', 60], ['pomodori', 100], ['olio-evo', 10]]),
   _P('p-focaccia-farcita', 'Focaccia farcita', ['focaccia con prosciutto', 'focaccia prosciutto e formaggio'], [['focaccia', 120], ['cotto', 40], ['stracchino', 40]]),
 ];
+
+// Nomi brevi con cui le ricette vengono scritte più spesso.
+const _ALIAS_RICETTE = {
+  'r-pasta-sarde': ['pasta con le sarde', 'pasta alle sarde', 'pasta con sarde'],
+  'r-pollo-cicoria': ['pollo alla piastra'],
+  'r-orecchiette-cime': ['orecchiette alle cime di rapa'],
+  'r-farro-ceci': ['insalata di farro'],
+  'r-baccala-ceci': ['baccala e ceci'],
+  'r-curry-ceci': ['curry di ceci'],
+};
+for (const r of RICETTE_BASE) if (_ALIAS_RICETTE[r.id]) r.alias = _ALIAS_RICETTE[r.id];
