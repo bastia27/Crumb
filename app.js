@@ -7,7 +7,7 @@
    ================================================================ */
 
 const LS_KEY = 'crumb:v1';
-const APP_VERSION = 17; // da allineare con ?v= in index.html e CACHE in sw.js
+const APP_VERSION = 18; // da allineare con ?v= in index.html e CACHE in sw.js
 const PASTI = [
   { id: 'colazione', nome: 'Colazione' },
   { id: 'pranzo', nome: 'Pranzo' },
@@ -1520,6 +1520,9 @@ function openQtySheet({ title, g, food, recipe, porzG, inc = 0 }) {
 
 function handleFreeText(text) {
   if (!text.trim()) return;
+  // Righe "data;pasto;alimenti" scritte qui: vanno nell'importazione, non tra gli alimenti.
+  const pp = parsePasti(text);
+  if (pp.righe.length && pp.righe.length >= pp.scartate.length) return openIncollaPasti(text);
   const rows = parseInput(text);
   if (!rows.length) return;
   // Voci semplici e sicure: dentro subito. Piatti e ricette: si mostrano gli ingredienti da ritoccare.
@@ -1864,18 +1867,22 @@ function parsePasti(text) {
   return { righe, scartate };
 }
 
-function openIncollaPasti() {
-  openSheet(`<h2>Incolla pasti passati</h2>
+function openIncollaPasti(testo = '') {
+  // Un pasto già registrato in quel giorno non viene toccato (a meno di scegliere "sostituisci"):
+  // così si possono importare pranzo e cena di oggi anche se la colazione è già nell'app.
+  const occupato = (r) => (S.giorni[r.k]?.pasti[r.pasto] || []).length > 0;
+  openSheet(`<h2>Incolla pasti</h2>
     <p class="small muted">Una riga per pasto: <b>data;pasto;alimenti</b>. Pasto = colazione, pranzo, spuntini o cena. Alimenti come li scriveresti in Aggiungi.</p>
-    <textarea class="inp" id="mIn" rows="8" placeholder="2026-09-20;pranzo;petto di pollo 300 g, cicoria 200 g, olio evo 10 g" autocapitalize="off" spellcheck="false"></textarea>
+    <textarea class="inp" id="mIn" rows="8" placeholder="2026-09-20;pranzo;petto di pollo 300 g, cicoria 200 g, olio evo 10 g" autocapitalize="off" spellcheck="false">${esc(testo)}</textarea>
     <div id="mPrev" class="small" style="margin-top:10px"></div>
     <div class="sheet-actions"><button class="btn" data-close>Annulla</button><button class="btn primary" id="mOk" disabled>Importa</button></div>`, (el) => {
     let res = { righe: [], scartate: [] };
     let sostituisci = false;
+    const daImportare = () => res.righe.filter((r) => sostituisci || !occupato(r));
     const upd = () => {
       res = parsePasti($('#mIn', el).value);
       const giorni = [...new Set(res.righe.map((r) => r.k))].sort();
-      const presenti = giorni.filter(dayHasData);
+      const giaPresenti = res.righe.filter(occupato);
       const voci = res.righe.flatMap((r) => r.rows);
       const ok = voci.filter((r) => r.pick);
       const incerti = ok.filter((r) => r.incerto);
@@ -1886,38 +1893,40 @@ function openIncollaPasti() {
         return;
       }
       const perGiorno = giorni.map((k) => {
-        const t = sumN(res.righe.filter((r) => r.k === k).flatMap((r) => r.rows.flatMap(rowToVoci)).map(voceNutr));
-        const skip = presenti.includes(k) && !sostituisci;
-        return `<li class="num${skip ? ' muted' : ''}">${labelDay(k, false)}: ${fmt(t.kcal)} kcal · P ${fmt(t.p)} · C ${fmt(t.cn)}${skip ? ' · già presente, saltato' : ''}</li>`;
+        const righe = res.righe.filter((r) => r.k === k);
+        const t = sumN(righe.filter((r) => sostituisci || !occupato(r)).flatMap((r) => r.rows.flatMap(rowToVoci)).map(voceNutr));
+        const saltati = righe.filter((r) => occupato(r) && !sostituisci).map((r) => r.pasto);
+        return `<li class="num">${labelDay(k, false)}: ${fmt(t.kcal)} kcal · P ${fmt(t.p)} · C ${fmt(t.cn)}${saltati.length ? ` <span class="muted">· ${saltati.join(', ')} già registrat${saltati.length === 1 ? 'o' : 'i'}, saltat${saltati.length === 1 ? 'o' : 'i'}</span>` : ''}</li>`;
       }).join('');
-      $('#mPrev', el).innerHTML = `<b class="num">${giorni.length} giorni, ${res.righe.length} pasti, ${ok.length} alimenti riconosciuti</b>
+      $('#mPrev', el).innerHTML = `<b class="num">${giorni.length} ${giorni.length === 1 ? 'giorno' : 'giorni'}, ${res.righe.length} pasti, ${ok.length} alimenti riconosciuti</b>
         <ul class="plist">${perGiorno}</ul>
         ${incerti.length ? `<div class="pbox warn"><b>Da controllare (${incerti.length})</b>${incerti.slice(0, 12).map((r) => `<div>«${esc(r.src)}» → ${esc(r.pick.item.nome)} ${fmt(r.g)} g</div>`).join('')}${incerti.length > 12 ? `<div>… e altri ${incerti.length - 12}</div>` : ''}</div>` : ''}
         ${miss.length ? `<div class="pbox bad"><b>Non riconosciuti, verranno saltati (${miss.length})</b>${miss.slice(0, 12).map((r) => `<div>«${esc(r.src)}»</div>`).join('')}<div class="muted">Correggi il testo qui sopra o crea l'alimento in Impostazioni.</div></div>` : ''}
         ${res.scartate.length ? `<div class="muted">Righe ignorate: ${res.scartate.length} (${esc(res.scartate.slice(0, 2).join(' · '))})</div>` : ''}
-        ${presenti.length ? `<label class="tagchk" style="margin-top:8px"><input type="checkbox" id="mRep" ${sostituisci ? 'checked' : ''}> Sostituisci ${presenti.length === 1 ? 'il giorno già presente' : `i ${presenti.length} giorni già presenti`}</label>` : ''}`;
+        ${giaPresenti.length ? `<label class="tagchk" style="margin-top:8px"><input type="checkbox" id="mRep" ${sostituisci ? 'checked' : ''}> Sostituisci ${giaPresenti.length === 1 ? 'il pasto già registrato' : `i ${giaPresenti.length} pasti già registrati`}</label>` : ''}`;
       $('#mRep', el)?.addEventListener('change', (e) => { sostituisci = e.target.checked; upd(); });
-      $('#mOk', el).disabled = !ok.length;
-      $('#mOk', el).textContent = (() => { const n = giorni.length - (sostituisci ? 0 : presenti.length); return `Importa ${n} ${n === 1 ? 'giorno' : 'giorni'}`; })();
+      const n = daImportare().length;
+      $('#mOk', el).disabled = !ok.length || !n;
+      $('#mOk', el).textContent = n ? `Importa ${n} ${n === 1 ? 'pasto' : 'pasti'}` : 'Niente da importare';
     };
     $('#mIn', el).addEventListener('input', upd);
     $('#mOk', el).addEventListener('click', () => {
       const prima = structuredClone(S.giorni);
-      const giorni = [...new Set(res.righe.map((r) => r.k))];
-      const presenti = new Set(giorni.filter(dayHasData));
-      for (const k of giorni) if (presenti.has(k) && sostituisci) delete S.giorni[k];
+      const righe = daImportare();
+      if (sostituisci) for (const r of righe) if (S.giorni[r.k]) S.giorni[r.k].pasti[r.pasto] = [];
       let n = 0;
-      for (const r of res.righe) {
-        if (presenti.has(r.k) && !sostituisci) continue;
+      for (const r of righe) {
         const d = getDay(r.k, true);
         for (const row of r.rows) for (const v of rowToVoci(row)) { d.pasti[r.pasto].push(v); n++; }
       }
-      for (const k of giorni) cleanupDay(k);
+      for (const k of new Set(righe.map((r) => r.k))) cleanupDay(k);
       save();
       closeSheet();
-      setTab('storico');
+      const soloOggi = righe.every((r) => r.k === todayKey());
+      if (soloOggi) { ui.day = todayKey(); setTab('oggi'); } else setTab('storico');
       toast(`${n} alimenti importati`, 'Annulla', () => { S.giorni = prima; save(); render(); });
     });
+    if (testo) upd();
     setTimeout(() => $('#mIn', el).focus(), 60);
   });
 }
@@ -2291,7 +2300,7 @@ function viewSettimana() {
 function viewStorico() {
   header('Storico', `${Object.keys(S.giorni).filter(dayHasData).length} giorni registrati`, false);
   const keys = Object.keys(S.giorni).filter(dayHasData).sort().reverse();
-  const incolla = '<button class="btn ghost block" data-act="incolla-pasti" style="margin-bottom:12px">Incolla pasti passati (data;pasto;alimenti)</button>';
+  const incolla = '<button class="btn ghost block" data-act="incolla-pasti" style="margin-bottom:12px">Incolla pasti (data;pasto;alimenti)</button>';
   if (!keys.length) return incolla + '<div class="card empty">Ancora nessun giorno registrato.</div>';
   const st = S.settings;
   let h = incolla + '<section class="card" style="padding:4px 16px">';

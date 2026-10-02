@@ -358,7 +358,7 @@ const PIATTI_BASE = [
   _P('p-insalata-mare', 'Insalata di mare', ['antipasto di mare'], [['polpo', 100], ['calamari', 80], ['gamberi', 80], ['cozze', 60], ['sedano', 20], ['olio-evo', 15]]),
 
   // — Verdure, contorni, piatti unici
-  _P('p-caponata', 'Caponata', ['caponata di melanzane'], [['melanzane', 200], ['sedano', 30], ['cipolla', 30], ['olive', 15], ['passata', 60], ['zucchero', 5], ['aceto-balsamico', 10], ['olio-evo', 20]]),
+  _P('p-caponata', 'Caponata', ['caponata di melanzane', 'caponata di verdure', 'caponata siciliana'], [['melanzane', 200], ['sedano', 30], ['cipolla', 30], ['olive', 15], ['passata', 60], ['zucchero', 5], ['aceto-balsamico', 10], ['olio-evo', 20]]),
   _P('p-peperonata', 'Peperonata', [], [['peperoni', 250], ['cipolla', 50], ['passata', 60], ['olio-evo', 15]]),
   _P('p-melanzane-funghetto', 'Melanzane a funghetto', [], [['melanzane', 250], ['passata', 50], ['olio-evo', 20]]),
   _P('p-insalata-mista', 'Insalata mista', ['insalata mista con carote', 'contorno di insalata'], [['misticanza', 100], ['pomodori', 100], ['carote', 50], ['olio-evo', 10]]),

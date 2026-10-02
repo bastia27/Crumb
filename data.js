@@ -137,6 +137,10 @@ ALIMENTI_BASE.push(
   _A('acciughe-olio', "Acciughe sott'olio", ['acciughe sott olio', 'filetti di acciuga', 'alici sott olio'], 206, 29, 0, 0, 3600, 20, ['pesce', 'pesce-azzurro', 'processato'], { pezzo: 4 }),
   _A('surimi', 'Surimi', ['surimi', 'bastoncini di surimi', 'polpa di granchio'], 99, 15, 6.9, 0, 700, 100, ['pesce', 'processato'], { pezzo: 17 }),
   _A('bastoncini-pesce', 'Bastoncini di pesce', ['bastoncini di pesce', 'bastoncini', 'fish sticks'], 205, 12, 17, 1, 400, 100, ['pesce', 'processato'], { pezzo: 25 }),
+  _A('gyoza', 'Gyoza / ravioli giapponesi', ['gyoza', 'gyoza di pollo', 'gyoza di maiale', 'gyoza di verdure', 'gyoza di gamberi', 'ravioli giapponesi', 'ravioli cinesi', 'ravioli al vapore', 'dumplings', 'jiaozi'], 200, 8.5, 25, 1.5, 450, 150, ['cereale', 'processato'], { pezzo: 25 }),
+  _A('involtini-primavera', 'Involtini primavera', ['involtini primavera', 'involtino primavera', 'spring roll'], 230, 5, 26, 2, 450, 100, ['cereale', 'processato'], { pezzo: 50 }),
+  _A('riso-cantonese', 'Riso alla cantonese', ['riso alla cantonese', 'riso cantonese', 'riso fritto'], 170, 5, 25, 1, 400, 250, ['cereale']),
+  _A('edamame-sale', 'Edamame salati (ristorante)', ['edamame salati'], 125, 11, 4, 5, 300, 100, ['legume']),
   _A('sushi', 'Sushi misto (nigiri/maki)', ['sushi', 'nigiri', 'maki', 'uramaki', 'sashimi e riso'], 150, 6, 28, 0.5, 400, 250, ['pesce', 'cereale'], { pezzo: 30 }),
   _A('salmone-scatola', 'Salmone in scatola', ['salmone in scatola', 'salmone al naturale'], 139, 23, 0, 0, 380, 100, ['pesce', 'processato'], { scatoletta: 100 }),
 
