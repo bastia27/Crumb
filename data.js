@@ -150,6 +150,8 @@ ALIMENTI_BASE.push(
   _A('yogurt-intero', 'Yogurt bianco intero', ['yogurt bianco', 'yogurt intero', 'yogurt naturale'], 66, 3.8, 4.3, 0, 48, 125, ['latticino'], { vasetto: 125, pezzo: 125 }),
   _A('greco-0', 'Yogurt greco 0%', ['yogurt greco 0', 'greco 0', 'yogurt greco magro', 'greco magro'], 54, 10, 3.5, 0, 36, 170, ['latticino'], { vasetto: 170, pezzo: 170, cucchiaio: 20 }),
   _A('greco-intero', 'Yogurt greco intero', ['yogurt greco intero', 'greco intero', 'greco 5%', 'greco 10%'], 97, 9, 3.8, 0, 35, 170, ['latticino'], { vasetto: 170, pezzo: 170, cucchiaio: 20 }),
+  // Valori stimati da yogurt greco 0% aromatizzati simili: etichetta non ancora letta.
+  { ..._A('zymil-greca-miele', 'Zymil Greca 0% miele e vaniglia', ['zymil greca miele e vaniglia', 'zymil greca', 'zymil miele e vaniglia', 'zymil', 'yogurt greco miele e vaniglia', 'greca zero miele e vaniglia', 'yogurt zymil'], 82, 8.5, 11, 0, 45, 150, ['latticino'], { vasetto: 150, pezzo: 150 }), stima: true },
   _A('skyr', 'Skyr', ['skyr'], 63, 11, 4, 0, 50, 150, ['latticino'], { vasetto: 150, pezzo: 150 }),
   _A('yogurt-proteico', 'Yogurt proteico', ['yogurt proteico', 'hipro', 'yogurt high protein'], 60, 10, 4, 0, 50, 160, ['latticino'], { vasetto: 160, pezzo: 160 }),
   _A('budino-proteico', 'Budino proteico', ['budino proteico', 'pudding proteico'], 80, 10, 7, 0, 100, 200, ['latticino'], { vasetto: 200, pezzo: 200 }),
