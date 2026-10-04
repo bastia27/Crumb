@@ -7,7 +7,7 @@
    ================================================================ */
 
 const LS_KEY = 'crumb:v1';
-const APP_VERSION = 19; // da allineare con ?v= in index.html e CACHE in sw.js
+const APP_VERSION = 20; // da allineare con ?v= in index.html e CACHE in sw.js
 const PASTI = [
   { id: 'colazione', nome: 'Colazione' },
   { id: 'pranzo', nome: 'Pranzo' },
@@ -850,7 +850,7 @@ function weekStats(endKey, includeToday = true) {
 /* ——— Ricette: porzione, tag calcolati ——— */
 
 const RICETTA_SOGLIE = { proteico: 35, fibraAlta: 8, sodioBasso: 300, veloce: 15, lowCarb: 12 };
-const RECIPE_TAGS = ['proteico', 'low-carb', 'fibra-alta', 'sodio-basso', 'pesce-azzurro', 'legumi', 'vegetariana', 'veloce', 'batch', 'senza-cottura'];
+const RECIPE_TAGS = ['proteico', 'low-carb', 'fibra-alta', 'sodio-basso', 'pesce-azzurro', 'legumi', 'vegetariana', 'al-volo', 'veloce', 'batch', 'senza-cottura', 'da-comprare'];
 const TAG_CARNE_PESCE = ['carne-bianca', 'carne-rossa', 'pesce'];
 
 function recipePortion(r) {
@@ -865,7 +865,8 @@ function recipeTags(r) {
   if (!r.ingredienti.some((ing) => (foodById(ing.fid)?.tag || []).some((t) => TAG_CARNE_PESCE.includes(t)))) tags.add('vegetariana');
   if (n.f >= RICETTA_SOGLIE.fibraAlta) tags.add('fibra-alta');
   if (n.na <= RICETTA_SOGLIE.sodioBasso) tags.add('sodio-basso');
-  if (r.tempo && r.tempo < RICETTA_SOGLIE.veloce) tags.add('veloce');
+  if (r.tempo != null && r.tempo <= 5) tags.add('al-volo');
+  if (r.tempo != null && r.tempo < RICETTA_SOGLIE.veloce) tags.add('veloce');
   for (const ing of r.ingredienti) {
     const a = foodById(ing.fid);
     if (!a) continue;
@@ -972,6 +973,8 @@ function puoSostituire(r, a, nSubs) {
 // Confronta una ricetta con quello che c'è in casa.
 // status: ok (tutto c'è), sub (c'è con sostituzioni), manca1 (manca un ingrediente), no.
 function analyzeRecipe(r, have) {
+  // Da comprare (bar, supermercato, asporto): non serve averla in dispensa.
+  if ((r.tag || []).includes('da-comprare')) return { r, status: 'ok', ing: null, subs: [], missing: [], optional: [], n: recipePortion(r), fuori: true };
   const info = recipeInfo(r);
   const used = new Set(r.ingredienti.map((i) => i.fid));
   const ing = [], subs = [], missing = [], optional = [];
@@ -1009,16 +1012,21 @@ const STATUS_RANK = { ok: 0, sub: 0, all: 0, manca1: 1, no: 2 };
 
 // "Cosa mangio stasera": filtro sulle ricette che si possono fare con quello che c'è in casa,
 // che stanno nel residuo di kcal, ordinate per quanto colmano il gap proteico.
-function stasera(k) {
+function stasera(k, tempoMax = null) {
   const rem = remaining(k);
   const gap = Math.max(0, rem.pMin);
   const have = inCasa();
   const filtra = dispensaUsabile(have);
   const list = allRecipes()
-    .map((r) => (filtra ? analyzeRecipe(r, have) : { r, status: 'all', ing: null, subs: [], missing: [], optional: [], n: recipePortion(r) }))
-    .filter((x) => x.status !== 'no' && x.n.kcal <= rem.kcalMax)
+    .map((r) => (filtra ? analyzeRecipe(r, have) : { r, status: 'all', ing: null, subs: [], missing: [], optional: [], n: recipePortion(r), fuori: (r.tag || []).includes('da-comprare') }))
+    .filter((x) => x.status !== 'no' && x.n.kcal <= rem.kcalMax && (tempoMax == null || (x.r.tempo ?? 99) <= tempoMax))
     .sort((a, b) => {
       if (STATUS_RANK[a.status] !== STATUS_RANK[b.status]) return STATUS_RANK[a.status] - STATUS_RANK[b.status];
+      // A parità, prima quello che si fa in casa: il "da comprare" è il piano B.
+      if (!!a.fuori !== !!b.fuori) return a.fuori ? 1 : -1;
+      // Poi quello che sta nei carboidrati rimasti (con la chetogenica conta molto).
+      const fa = a.n.cn <= Math.max(0, rem.cn) + 1, fb = b.n.cn <= Math.max(0, rem.cn) + 1;
+      if (fa !== fb) return fa ? -1 : 1;
       if (gap > 0) {
         const ca = Math.min(a.n.p, gap), cb = Math.min(b.n.p, gap);
         if (Math.abs(ca - cb) > 0.5) return cb - ca;
@@ -1182,7 +1190,7 @@ async function copyText(text) {
    UI: SHEET, TOAST, NAVIGAZIONE
    ================================================================ */
 
-const ui = { tab: 'oggi', day: todayKey(), weekEnd: todayKey(), pasto: defaultPasto(), pesoRange: 30, quick: 'recenti', recipeTag: '' };
+const ui = { tempoStasera: (() => { try { const v = localStorage.getItem('crumb:tempo'); return v ? Number(v) : null; } catch (e) { return null; } })(), tab: 'oggi', day: todayKey(), weekEnd: todayKey(), pasto: defaultPasto(), pesoRange: 30, quick: 'recenti', recipeTag: '' };
 
 function defaultPasto() {
   const h = new Date().getHours();
@@ -2140,17 +2148,26 @@ function bindDispensa(root, onChange) {
 function stasereCard(x, i, t0, rem) {
   const st = S.settings;
   const end = sumN([t0, x.n]);
-  const overC = x.n.cn > Math.max(0, rem.cn);
+  const overBy = end.cn - st.carboMax;
+  const overC = overBy >= 1;
   const notes = [];
   if (x.subs.length) notes.push(x.subs.map((s) => `${s.to.nome} al posto di ${s.from.nome.toLowerCase()}`).join(' · '));
   if (x.missing.length) notes.push(`<span class="txt-bad">Ti manca: ${esc(x.missing.map((a) => a.nome).join(', '))}</span>`);
   if (x.optional.length) notes.push(`Senza: ${esc(x.optional.map((a) => a.nome.toLowerCase()).join(', '))}`);
-  return `<button class="opt" data-i="${i}">
-    <div class="row"><h3 style="flex:1">${esc(x.r.nome)}</h3><span class="num small muted">${x.r.tempo ? `${x.r.tempo} min` : ''}</span></div>
+  const ings = (x.ing || x.r.ingredienti.map((it) => ({ fid: it.fid, g: it.g }))).filter((it) => it.g > 0)
+    .map((it) => `${foodById(it.fid)?.nome || it.fid} ${fmt(it.g / (x.r.porzioni || 1))} g`);
+  const tempo = x.fuori ? 'da comprare' : x.r.tempo != null ? `${x.r.tempo} min` : '';
+  return `<div class="opt">
+    <div class="row"><h3 style="flex:1">${esc(x.r.nome)}</h3><span class="num small muted">${tempo}</span></div>
     <div class="small num">${fmt(x.n.kcal)} kcal · P ${fmt(x.n.p)} g · C ${fmt(x.n.cn, 1)} g · F ${fmt(x.n.f, 1)} g</div>
     ${notes.length ? `<div class="small">${notes.join('<br>')}</div>` : ''}
-    <div class="why num">Chiuderesti a ${fmt(end.kcal)} kcal e ${fmt(end.p)} g di proteine${overC ? ` · <span class="txt-bad">carbo oltre il tetto di ${fmt(end.cn - st.carboMax)} g</span>` : ''}</div>
-  </button>`;
+    <div class="why num">Chiuderesti a ${fmt(end.kcal)} kcal e ${fmt(end.p)} g di proteine${overC ? ` · <span class="txt-bad">carbo oltre il tetto di ${fmt(overBy)} g</span>` : ''}</div>
+    <details class="come"><summary>Come si fa</summary>
+      <div class="small muted">${esc(ings.join(' · '))}</div>
+      ${x.r.procedimento?.length ? `<ol class="steps">${x.r.procedimento.slice(0, 4).map((p) => `<li>${esc(p)}</li>`).join('')}</ol>` : ''}
+    </details>
+    <button class="btn sm primary" data-i="${i}" style="margin-top:8px">Mangio questo</button>
+  </div>`;
 }
 
 // Tap sul nome di un piatto nel diario: cambia le porzioni di tutto il piatto o eliminalo.
@@ -2187,8 +2204,10 @@ function openGroupSheet(pasto, gid) {
   });
 }
 
+const TEMPI = [[5, '5 min'], [15, '15 min'], [30, '30 min'], [null, 'Senza fretta']];
+
 function openStasera() {
-  const { rem, gap, list, filtra } = stasera(ui.day);
+  const { rem, gap, list, filtra } = stasera(ui.day, ui.tempoStasera ?? null);
   const st = S.settings;
   const t0 = rem.t;
   const d = dispensa();
@@ -2198,25 +2217,48 @@ function openStasera() {
   else if (rem.kcalMin > 1200) intro = `Hai mangiato troppo poco finora: ti restano ${fmt(rem.kcalMin)} kcal per un pasto solo.`;
   else intro = `Ti restano ${fmt(rem.kcalMin)}–${fmt(rem.kcalMax)} kcal e ${fmt(gap)} g di proteine per il minimo.`;
 
-  const pronte = list.filter((x) => STATUS_RANK[x.status] === 0).slice(0, 6);
+  // Consiglio secco: la prima proposta, detta in una riga con i numeri.
+  const top = list.find((x) => STATUS_RANK[x.status] === 0 && !x.fuori) || list.find((x) => x.fuori);
+  const t = ui.tempoStasera;
+  let consiglio = '';
+  if (top && rem.kcalMax > 0) {
+    const premessa = t === 5 ? 'Hai 5 minuti: niente fornelli.' : t === 15 ? 'Hai un quarto d’ora.' : t === 30 ? 'Hai mezz’ora.' : '';
+    const come = top.fuori ? 'Prendi' : 'Fai';
+    consiglio = `<div class="consiglio"><b>${premessa ? `${premessa} ` : ''}${come}: ${esc(top.r.nome)}</b><span class="num">${fmt(top.n.kcal)} kcal · ${fmt(top.n.p)} g di proteine${gap > 0 ? `, ${fmt(Math.min(100, (top.n.p / gap) * 100))}% di quelle che mancano` : ''}.</span></div>`;
+  } else if (rem.kcalMax > 0) {
+    consiglio = `<div class="consiglio"><b>Niente che stia in ${t ? `${t} minuti` : 'questi limiti'}.</b><span>Prova un tempo più lungo o aggiungi cosa hai in casa.</span></div>`;
+  }
+
+  const tutteCasa = list.filter((x) => STATUS_RANK[x.status] === 0 && !x.fuori);
+  const pronte = tutteCasa.slice(0, 6);
   const manca = filtra ? list.filter((x) => x.status === 'manca1').slice(0, 4) : [];
-  const shown = [...pronte, ...manca];
+  const fuori = list.filter((x) => x.fuori).slice(0, 3);
+  const shown = [...pronte, ...manca, ...fuori];
   let body = '';
-  if (!filtra) body += `<p class="small muted">Nessuna fonte proteica in casa: mostro tutte le ricette. Scrivi cosa hai di fresco qui sopra.</p>`;
-  if (pronte.length) body += `${filtra ? `<h3 class="grp">Si possono fare · ${list.filter((x) => STATUS_RANK[x.status] === 0).length}</h3>` : ''}${pronte.map((x, i) => stasereCard(x, i, t0, rem)).join('')}`;
-  else if (filtra) body += `<p class="small">Con quello che c'è in casa nessuna ricetta completa sta nelle ${fmt(Math.max(0, rem.kcalMax))} kcal che restano.</p>`;
+  if (!filtra) body += `<p class="small muted">Nessuna fonte proteica in casa: mostro tutte le ricette. Scrivi cosa hai di fresco qui sotto.</p>`;
+  if (pronte.length) body += `<h3 class="grp">${filtra ? 'Si possono fare' : 'In casa'} · ${tutteCasa.length}</h3>${pronte.map((x, i) => stasereCard(x, i, t0, rem)).join('')}`;
+  else if (filtra && rem.kcalMax > 0) body += `<p class="small">Con quello che c'è in casa nessuna ricetta completa sta nelle ${fmt(Math.max(0, rem.kcalMax))} kcal che restano${t ? ` e nei ${t} minuti` : ''}.</p>`;
   if (manca.length) body += `<h3 class="grp">Ti manca 1 ingrediente · ${list.filter((x) => x.status === 'manca1').length}</h3>${manca.map((x, i) => stasereCard(x, pronte.length + i, t0, rem)).join('')}`;
+  if (fuori.length) body += `<h3 class="grp">Da comprare al volo · ${list.filter((x) => x.fuori).length}</h3>${fuori.map((x, i) => stasereCard(x, pronte.length + manca.length + i, t0, rem)).join('')}`;
 
   openSheet(`<h2>Cosa mangio stasera</h2><p>${intro}</p>
-    <section class="casa">
+    <span class="small muted">Quanto tempo hai?</span>
+    <div class="seg" id="tempoSeg" style="margin-top:4px">${TEMPI.map(([v, l]) => `<button data-t="${v ?? ''}" aria-pressed="${(ui.tempoStasera ?? null) === v}">${l}</button>`).join('')}</div>
+    ${consiglio}
+    ${body}
+    <section class="casa" style="margin-top:14px">
       <div class="row"><b style="flex:1">Fresco in casa</b><span class="small muted">vale ${FRESCO_GIORNI} giorni</span></div>
       ${dispensaBlock('fresco')}
       <details class="base"><summary class="small">Base fissa: ${d.base.length} alimenti · modifica</summary>${dispensaBlock('base')}</details>
     </section>
-    ${body}
-    <p class="small muted">Ricette con una porzione entro ${fmt(Math.max(0, rem.kcalMax))} kcal, ordinate per quante proteine mancanti coprono. Le sostituzioni restano nella stessa categoria e mantengono le proteine.</p>
+    <p class="small muted">Ricette con una porzione entro ${fmt(Math.max(0, rem.kcalMax))} kcal${t ? ` e ${t} minuti` : ''}, ordinate per quante proteine mancanti coprono. "Da comprare" = bar, supermercato o asporto: non serve averle in casa.</p>
     <div class="sheet-actions"><button class="btn" data-close>Chiudi</button></div>`, (el) => {
     const baseOpen = () => $('details.base', el)?.open;
+    $$('#tempoSeg button', el).forEach((b) => b.addEventListener('click', () => {
+      ui.tempoStasera = b.dataset.t === '' ? null : Number(b.dataset.t);
+      try { localStorage.setItem('crumb:tempo', String(ui.tempoStasera ?? '')); } catch (e) { /* facoltativo */ }
+      openStasera();
+    }));
     bindDispensa($('.casa', el), () => {
       const wasOpen = baseOpen();
       openStasera();
@@ -2512,7 +2554,7 @@ function openRecipeEditor(id) {
     <label class="f"><span>Ingredienti (testo libero, come per i pasti)</span><textarea class="inp" id="ri" rows="4" autocapitalize="off" spellcheck="false" placeholder="uova 3, zucchine 200, parmigiano 15, olio 1 cucchiaino">${esc(text)}</textarea></label>
     <div id="rprev" class="small"></div>
     <label class="f"><span>Procedimento (max 4 righe)</span><textarea class="inp" id="rproc" rows="4">${esc((r?.procedimento || []).join('\n'))}</textarea></label>
-    <div class="f"><span class="small muted">Tag manuali (gli altri li calcola l'app dai numeri)</span><div class="chips" style="margin-top:6px">${['batch', 'senza-cottura'].map((t) => `<label class="chip tagchk"><input type="checkbox" value="${t}" ${(r?.tag || []).includes(t) ? 'checked' : ''}>${t}</label>`).join('')}</div></div>
+    <div class="f"><span class="small muted">Tag manuali (gli altri li calcola l'app dai numeri)</span><div class="chips" style="margin-top:6px">${['batch', 'senza-cottura', 'da-comprare'].map((t) => `<label class="chip tagchk"><input type="checkbox" value="${t}" ${(r?.tag || []).includes(t) ? 'checked' : ''}>${t}</label>`).join('')}</div></div>
     ${r ? `<p class="small muted">Tag calcolati: ${recipeTags(r).join(', ') || 'nessuno'}. Proteico &gt;${RICETTA_SOGLIE.proteico} g proteine, low-carb ≤${RICETTA_SOGLIE.lowCarb} g carbo netti, fibra-alta ≥${RICETTA_SOGLIE.fibraAlta} g, sodio-basso ≤${RICETTA_SOGLIE.sodioBasso} mg a porzione, veloce &lt;${RICETTA_SOGLIE.veloce} min.</p>` : ''}
     <div class="sheet-actions">${r ? (r.base ? '<button class="btn danger" id="rhide">Nascondi</button>' : '<button class="btn danger" id="rdel">Elimina</button>') : '<button class="btn" data-close>Annulla</button>'}<button class="btn primary" id="rok">Salva</button></div>`, (el) => {
     const upd = () => {
