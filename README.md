@@ -16,7 +16,7 @@ Dove servirebbe un giudizio qualitativo, CRUMB esporta i dati come testo da inco
 - `index.html` — struttura e stile
 - `app.js` — stato, parser, calcoli, viste
 - `data.js` — database alimenti (valori per 100 g, carbo netti = totali − fibra)
-- `ricette.js` — ricette precaricate (ingredienti → valori calcolati)
+- `ricette.js` — 190 ricette precaricate da 16 cucine del mondo, con varianti (ingredienti → valori calcolati); filtro per cucina in Aggiungi → Ricette
 - `manifest.webmanifest`, `sw.js`, `icon.svg`, `icons/` — PWA
 
 ## Uso

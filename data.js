@@ -336,7 +336,7 @@ ALIMENTI_BASE.push(
   _A('filetto-maiale', 'Filetto di maiale', ['filetto di maiale', 'filetto maiale', 'filettino di maiale', 'filetto di suino'], 120, 21, 0, 0, 50, 180, ['carne-rossa']),
   _A('braciola-maiale', 'Braciola / costoletta di maiale', ['braciola di maiale', 'braciole di maiale', 'costoletta di maiale', 'costolette di maiale', 'braciola', 'bistecca di maiale', 'nodino di maiale'], 172, 20, 0, 0, 55, 200, ['carne-rossa'], { pezzo: 200 }),
   _A('costine', 'Costine di maiale', ['costine', 'costine di maiale', 'costicine', 'spuntature', 'puntine', 'ribs', 'costolette di maiale alla griglia'], 277, 15.5, 0, 0, 81, 250, ['carne-rossa']),
-  _A('spalla-maiale', 'Spalla di maiale', ['spalla di maiale', 'capocollo fresco', 'coppa di maiale fresca', 'pulled pork', 'maiale sfilacciato', 'arrosto di spalla'], 186, 17.2, 0, 0, 72, 200, ['carne-rossa']),
+  _A('spalla-maiale', 'Spalla di maiale', ['spalla di maiale', 'capocollo fresco', 'coppa di maiale fresca', 'arrosto di spalla'], 186, 17.2, 0, 0, 72, 200, ['carne-rossa']),
   _A('pancia-maiale', 'Pancia di maiale', ['pancia di maiale', 'pancetta fresca', 'pork belly', 'pancia'], 518, 9.3, 0, 0, 32, 150, ['carne-rossa', 'grasso']),
   _A('stinco', 'Stinco di maiale', ['stinco', 'stinco di maiale', 'stinco al forno'], 185, 18, 0, 0, 70, 300, ['carne-rossa']),
   _A('macinato-maiale', 'Macinato di maiale', ['macinato di maiale', 'carne trita di maiale', 'trito di maiale'], 263, 16.9, 0, 0, 56, 150, ['carne-rossa']),
@@ -435,6 +435,23 @@ ALIMENTI_BASE.push(
   _A('capperi', 'Capperi', ['capperi', 'cappero'], 23, 2.4, 1.7, 3.2, 2350, 10, ['verdura', 'processato'], { cucchiaio: 9, cucchiaino: 3 }),
   _A('concentrato', 'Concentrato di pomodoro', ['concentrato di pomodoro', 'concentrato', 'pomodoro concentrato'], 82, 4.3, 14.8, 4.1, 59, 15, ['verdura'], { cucchiaio: 15, cucchiaino: 5 }),
   _A('verdure-surgelate', 'Verdure miste surgelate', ['verdure miste surgelate', 'misto per wok', 'verdure per wok', 'contorno di verdure surgelate'], 35, 2, 4.5, 2.8, 30, 200, ['verdura']),
+);
+
+// — Ingredienti per le cucine del mondo (valori per 100 g).
+ALIMENTI_BASE.push(
+  _A('pita', 'Pane pita', ['pita', 'pane pita', 'pita greca'], 275, 9, 53, 2.2, 530, 60, ['cereale'], { pezzo: 60 }),
+  _A('naan', 'Pane naan', ['naan', 'pane naan', 'pane indiano'], 290, 9, 48, 2, 450, 90, ['cereale'], { pezzo: 90 }),
+  _A('tortilla-mais', 'Tortillas di mais', ['tortillas di mais', 'tortilla di mais', 'gusci per tacos'], 218, 5.7, 38, 6.3, 45, 75, ['cereale'], { pezzo: 25 }),
+  _A('bulgur', 'Bulgur', ['bulgur', 'burghul'], 342, 12.3, 63.4, 12.5, 17, 60, ['cereale']),
+  _A('noodles-riso', 'Noodles di riso (secchi)', ['noodles di riso', 'spaghetti di riso', 'vermicelli di riso', 'tagliatelle di riso', 'rice noodles'], 360, 6, 79, 1.6, 50, 70, ['cereale']),
+  _A('noodles-uovo', "Noodles all'uovo (secchi)", ['noodles', 'noodles all uovo', 'spaghetti cinesi', 'tagliolini cinesi', 'udon', 'soba'], 384, 14, 70, 3.3, 20, 80, ['cereale']),
+  _A('kimchi', 'Kimchi', ['kimchi', 'kimchee'], 15, 1.1, 1.5, 1.6, 500, 50, ['verdura', 'processato']),
+  _A('miso', 'Miso (pasta)', ['miso', 'pasta di miso'], 199, 12, 20, 5, 3700, 20, ['legume', 'processato'], { cucchiaio: 18, cucchiaino: 6 }),
+  _A('tzatziki', 'Tzatziki', ['tzatziki', 'salsa tzatziki', 'salsa allo yogurt'], 80, 4, 3, 0.3, 300, 50, ['latticino'], { cucchiaio: 20 }),
+  _A('falafel', 'Falafel', ['falafel', 'polpette di ceci'], 333, 13.3, 26, 5, 294, 120, ['legume', 'processato'], { pezzo: 20 }),
+  _A('paneer', 'Paneer', ['paneer', 'formaggio indiano'], 321, 21, 3, 0, 20, 100, ['latticino']),
+  _A('guacamole', 'Guacamole', ['guacamole'], 160, 2, 2.5, 6, 250, 60, ['grasso'], { cucchiaio: 20 }),
+  _A('salsa-teriyaki', 'Salsa teriyaki', ['salsa teriyaki', 'teriyaki'], 89, 6, 15, 0.1, 3800, 20, ['processato'], { cucchiaio: 18 }),
 );
 
 // Grammi per le misure casalinghe quando l'alimento non ne definisce una propria.

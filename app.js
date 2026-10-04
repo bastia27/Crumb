@@ -7,7 +7,7 @@
    ================================================================ */
 
 const LS_KEY = 'crumb:v1';
-const APP_VERSION = 20; // da allineare con ?v= in index.html e CACHE in sw.js
+const APP_VERSION = 21; // da allineare con ?v= in index.html e CACHE in sw.js
 const PASTI = [
   { id: 'colazione', nome: 'Colazione' },
   { id: 'pranzo', nome: 'Pranzo' },
@@ -473,7 +473,7 @@ function matchIndex() {
     const names = new Set([a.nome, ...(a.alias || [])]);
     idx.push({ kind: 'food', item: a, keys: [...names].map(tokens).filter((t) => t.length), raw: new Set([...names].map((n) => rawTokens(n).join(' '))) });
   }
-  for (const r of [...allRecipes(), ...(typeof PIATTI_BASE !== 'undefined' ? PIATTI_BASE : [])]) {
+  for (const r of [...allRecipes().filter((x) => !x.soloSuggerimento), ...(typeof PIATTI_BASE !== 'undefined' ? PIATTI_BASE : [])]) {
     const names = [r.nome, ...(r.alias || [])];
     idx.push({ kind: 'recipe', item: r, keys: names.map(tokens).filter((t) => t.length), raw: new Set(names.map((n) => rawTokens(n).join(' '))) });
   }
@@ -1190,7 +1190,7 @@ async function copyText(text) {
    UI: SHEET, TOAST, NAVIGAZIONE
    ================================================================ */
 
-const ui = { tempoStasera: (() => { try { const v = localStorage.getItem('crumb:tempo'); return v ? Number(v) : null; } catch (e) { return null; } })(), tab: 'oggi', day: todayKey(), weekEnd: todayKey(), pasto: defaultPasto(), pesoRange: 30, quick: 'recenti', recipeTag: '' };
+const ui = { tempoStasera: (() => { try { const v = localStorage.getItem('crumb:tempo'); return v ? Number(v) : null; } catch (e) { return null; } })(), tab: 'oggi', day: todayKey(), weekEnd: todayKey(), pasto: defaultPasto(), pesoRange: 30, quick: 'recenti', recipeTag: '', recipeCucina: '' };
 
 function defaultPasto() {
   const h = new Date().getHours();
@@ -1440,6 +1440,7 @@ function openAddSheet(pasto) {
       }
     });
     $('#quickBox', el).addEventListener('click', onQuickClick);
+    $('#quickBox', el).addEventListener('change', onQuickChange);
   });
 }
 
@@ -1450,13 +1451,20 @@ function quickHtml() {
     return `<div class="chips">${rec.map((r) => `<button class="chip" data-quick="food" data-id="${esc(r.fid)}" data-g="${r.g}">${esc(r.a.nome)} · ${fmt(r.g)} g</button>`).join('')}</div>`;
   }
   if (ui.quick === 'ricette') {
-    const rs = allRecipes().filter((r) => !ui.recipeTag || recipeTags(r).includes(ui.recipeTag));
-    const filt = `<div class="chips tagfilter">${['', ...RECIPE_TAGS].map((t) => `<button class="chip sm" data-rtag="${t}" aria-pressed="${ui.recipeTag === t}">${t || 'tutte'}</button>`).join('')}</div>`;
-    if (!rs.length) return filt + '<p class="muted small">Nessuna ricetta con questo tag.</p>';
+    const rs = allRecipes().filter((r) => (!ui.recipeTag || recipeTags(r).includes(ui.recipeTag)) && (!ui.recipeCucina || r.cucina === ui.recipeCucina));
+    const conta = (c) => allRecipes().filter((r) => r.cucina === c).length;
+    const filt = `<select class="inp cucina" id="rCucina" aria-label="Cucina"><option value="">Tutte le cucine · ${allRecipes().length}</option>${CUCINE.map((c) => `<option value="${esc(c)}"${ui.recipeCucina === c ? ' selected' : ''}>${esc(c[0].toUpperCase() + c.slice(1))} · ${conta(c)}</option>`).join('')}</select><div class="chips tagfilter">${['', ...RECIPE_TAGS].map((t) => `<button class="chip sm" data-rtag="${t}" aria-pressed="${ui.recipeTag === t}">${t || 'tutte'}</button>`).join('')}</div>`;
+    if (!rs.length) return filt + '<p class="muted small">Nessuna ricetta con questi filtri.</p>';
     return filt + `<div class="list">${rs.map((r) => `<button class="li" data-quick="recipe" data-id="${esc(r.id)}"><span class="nm">${esc(r.nome)}<small class="num">${recipeMeta(r)}</small></span><span class="muted">›</span></button>`).join('')}</div>`;
   }
   if (!S.preset.length) return '<p class="muted small">Nessun pasto salvato. Da un pasto di Oggi tocca "Salva come preset".</p>';
   return `<div class="chips">${S.preset.map((p) => `<button class="chip" data-quick="preset" data-id="${esc(p.id)}">${esc(p.nome)} · ${fmt(sumN(p.voci.map(voceNutr)).kcal)} kcal</button>`).join('')}</div>`;
+}
+
+function onQuickChange(e) {
+  if (e.target.id !== 'rCucina') return;
+  ui.recipeCucina = e.target.value;
+  e.currentTarget.innerHTML = quickHtml();
 }
 
 function onQuickClick(e) {
@@ -2029,7 +2037,7 @@ function openRecipeSheet(r, pasto, back, variant) {
   }).join('');
   openSheet(`<h2>${esc(r.nome)}</h2>
     <p class="small muted num">${variant ? `${r.tempo ? `${r.tempo} min · ` : ''}${fmt(variant.n.kcal)} kcal · P ${fmt(variant.n.p)} · C ${fmt(variant.n.cn)} · F ${fmt(variant.n.f)}` : recipeMeta(r)} a porzione${r.porzioni > 1 ? ` · la ricetta fa ${r.porzioni} porzioni` : ''}</p>
-    ${tagChips(recipeTags(r))}
+    ${tagChips([...(r.cucina && r.cucina !== 'italiana' ? [`cucina ${r.cucina}`] : []), ...recipeTags(r)])}
     ${r.procedimento?.length ? `<ol class="steps">${r.procedimento.slice(0, 4).map((s) => `<li>${esc(s)}</li>`).join('')}</ol>` : ''}
     <div class="seg" id="rPasto">${PASTI.map((p) => `<button data-p="${p.id}" aria-pressed="${p.id === ui.pasto}">${p.nome}</button>`).join('')}</div>
     <div class="seg" id="rMult">${[0.5, 1, 1.5, 2].map((x) => `<button data-m="${x}" aria-pressed="${x === 1}">${fmt(x, x % 1 ? 1 : 0)} porz.</button>`).join('')}</div>
