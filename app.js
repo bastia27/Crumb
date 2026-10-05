@@ -7,7 +7,7 @@
    ================================================================ */
 
 const LS_KEY = 'crumb:v1';
-const APP_VERSION = 23; // da allineare con ?v= in index.html e CACHE in sw.js
+const APP_VERSION = 24; // da allineare con ?v= in index.html e CACHE in sw.js
 const PASTI = [
   { id: 'colazione', nome: 'Colazione' },
   { id: 'pranzo', nome: 'Pranzo' },
@@ -850,7 +850,7 @@ function weekStats(endKey, includeToday = true) {
 /* ——— Ricette: porzione, tag calcolati ——— */
 
 const RICETTA_SOGLIE = { proteico: 35, fibraAlta: 8, sodioBasso: 300, veloce: 15, lowCarb: 12 };
-const RECIPE_TAGS = ['proteico', 'low-carb', 'fibra-alta', 'sodio-basso', 'pesce-azzurro', 'legumi', 'vegetariana', 'al-volo', 'veloce', 'batch', 'senza-cottura', 'da-comprare'];
+const RECIPE_TAGS = ['proteico', 'low-carb', 'pesce', 'fibra-alta', 'sodio-basso', 'pesce-azzurro', 'legumi', 'vegetariana', 'al-volo', 'veloce', 'batch', 'senza-cottura', 'da-comprare'];
 const TAG_CARNE_PESCE = ['carne-bianca', 'carne-rossa', 'pesce'];
 
 function recipePortion(r) {
@@ -870,6 +870,7 @@ function recipeTags(r) {
   for (const ing of r.ingredienti) {
     const a = foodById(ing.fid);
     if (!a) continue;
+    if (a.tag.includes('pesce')) tags.add('pesce');
     if (a.tag.includes('pesce-azzurro')) tags.add('pesce-azzurro');
     if (a.tag.includes('legume')) tags.add('legumi');
   }
@@ -2314,7 +2315,7 @@ function ricetteListHtml() {
   }
   const ordine = ['le tue ricette', ...CUCINE];
   const gruppi = ordine.map((c) => [c, rs.filter((r) => cucinaDi(r) === c).sort(byName)]).filter(([, l]) => l.length);
-  return gruppi.map(([c, l]) => `<details class="sec"${c === 'le tue ricette' ? ' open' : ''}><summary>${esc(cucinaLabel(c))}<span class="muted small num" style="margin-left:8px;font-weight:500">${l.length}</span></summary><div class="body"><div class="list">${l.map(ricettaLi).join('')}</div></div></details>`).join('');
+  return (ui.ricTag ? `<p class="small muted num">${rs.length} ricette ${esc(ui.ricTag)}</p>` : '') + gruppi.map(([c, l]) => `<details class="sec"${c === 'le tue ricette' ? ' open' : ''}><summary>${esc(cucinaLabel(c))}<span class="muted small num" style="margin-left:8px;font-weight:500">${l.length}</span></summary><div class="body"><div class="list">${l.map(ricettaLi).join('')}</div></div></details>`).join('');
 }
 
 const RIC_TEMPI = [[5, '5 min'], [15, '15 min'], [30, '30 min'], [60, '1 ora'], [null, 'Tutte']];

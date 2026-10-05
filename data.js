@@ -120,7 +120,7 @@ ALIMENTI_BASE.push(
   _A('kebab', 'Kebab (piadina/pita)', ['kebab', 'doner', 'kebab piadina', 'gyros'], 215, 12, 18, 1.5, 600, 350, ['carne-rossa', 'processato', 'cereale'], { pezzo: 350 }),
 
   // Pesce
-  _A('tonno-fresco', 'Tonno fresco', ['tonno fresco', 'trancio di tonno', 'tataki di tonno'], 130, 24, 0, 0, 40, 200, ['pesce', 'pesce-azzurro']),
+  _A('tonno-fresco', 'Tonno fresco', ['tonno fresco', 'trancio di tonno'], 130, 24, 0, 0, 40, 200, ['pesce', 'pesce-azzurro']),
   _A('tonno-olio', "Tonno sott'olio (sgocciolato)", ['tonno sott olio', 'tonno all olio', 'tonno in olio'], 192, 25, 0, 0, 300, 80, ['pesce', 'processato'], { scatoletta: 52 }),
   _A('pesce-spada', 'Pesce spada', ['pesce spada', 'spada'], 121, 19.8, 0, 0, 90, 200, ['pesce']),
   _A('sogliola', 'Sogliola', ['sogliola', 'sogliole'], 83, 17, 0, 0, 80, 200, ['pesce']),

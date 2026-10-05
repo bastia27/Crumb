@@ -10,14 +10,14 @@ Dove servirebbe un giudizio qualitativo, CRUMB esporta i dati come testo da inco
 - **Oggi**: barre kcal/proteine/carbo netti/fibra, voto, alert (sodio, fibra concentrata, olio e formaggi), range per le porzioni non pesate, suggerimento con ricette, "Cosa mangio stasera", "Copia giornata".
 - **Peso**: pesata del mattino e media mobile a 7 giorni.
 - **Settimana**: ultimi 7 giorni, medie con scarto dal target, deficit e grasso stimato (÷ 7700), giorni sotto 1800 kcal, regole per tag, "Copia settimana".
-- **Ricette**: ricettario completo (190 ricette, 16 cucine) con ricerca per nome o ingrediente, filtri per tempo, cucina e tag; da qui si apre anche "Cosa mangio stasera".
+- **Ricette**: ricettario completo (266 ricette, 16 cucine, 123 di pesce) con ricerca per nome o ingrediente, filtri per tempo, cucina e tag; da qui si apre anche "Cosa mangio stasera".
 - **Storico** e **Impostazioni** (target, soglie del voto, regole, alimenti, ricette, backup JSON).
 
 ## File
 - `index.html` — struttura e stile
 - `app.js` — stato, parser, calcoli, viste
 - `data.js` — database alimenti (valori per 100 g, carbo netti = totali − fibra)
-- `ricette.js` — 190 ricette precaricate da 16 cucine del mondo, con varianti (ingredienti → valori calcolati); filtro per cucina in Aggiungi → Ricette
+- `ricette.js` — 266 ricette precaricate da 16 cucine del mondo, con varianti (ingredienti → valori calcolati); filtro per cucina in Aggiungi → Ricette
 - `manifest.webmanifest`, `sw.js`, `icon.svg`, `icons/` — PWA
 
 ## Uso
