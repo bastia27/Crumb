@@ -7,7 +7,7 @@
    ================================================================ */
 
 const LS_KEY = 'crumb:v1';
-const APP_VERSION = 21; // da allineare con ?v= in index.html e CACHE in sw.js
+const APP_VERSION = 22; // da allineare con ?v= in index.html e CACHE in sw.js
 const PASTI = [
   { id: 'colazione', nome: 'Colazione' },
   { id: 'pranzo', nome: 'Pranzo' },
@@ -1190,7 +1190,7 @@ async function copyText(text) {
    UI: SHEET, TOAST, NAVIGAZIONE
    ================================================================ */
 
-const ui = { tempoStasera: (() => { try { const v = localStorage.getItem('crumb:tempo'); return v ? Number(v) : null; } catch (e) { return null; } })(), tab: 'oggi', day: todayKey(), weekEnd: todayKey(), pasto: defaultPasto(), pesoRange: 30, quick: 'recenti', recipeTag: '', recipeCucina: '' };
+const ui = { tempoStasera: (() => { try { const v = localStorage.getItem('crumb:tempo'); return v ? Number(v) : null; } catch (e) { return null; } })(), tab: 'oggi', day: todayKey(), weekEnd: todayKey(), pasto: defaultPasto(), pesoRange: 30, quick: 'recenti', recipeTag: '', recipeCucina: '', ricCerca: '', ricCucina: '', ricTag: '' };
 
 function defaultPasto() {
   const h = new Date().getHours();
@@ -1288,8 +1288,10 @@ function render() {
   else if (ui.tab === 'peso') main.innerHTML = viewPeso();
   else if (ui.tab === 'settimana') main.innerHTML = viewSettimana();
   else if (ui.tab === 'storico') main.innerHTML = viewStorico();
+  else if (ui.tab === 'ricette') main.innerHTML = viewRicette();
   else main.innerHTML = viewImpostazioni();
   bindView(main);
+  if (ui.tab === 'ricette') bindRicette(main);
 }
 
 /* ================================================================
@@ -2260,7 +2262,8 @@ function openStasera() {
       <details class="base"><summary class="small">Base fissa: ${d.base.length} alimenti · modifica</summary>${dispensaBlock('base')}</details>
     </section>
     <p class="small muted">Ricette con una porzione entro ${fmt(Math.max(0, rem.kcalMax))} kcal${t ? ` e ${t} minuti` : ''}, ordinate per quante proteine mancanti coprono. "Da comprare" = bar, supermercato o asporto: non serve averle in casa.</p>
-    <div class="sheet-actions"><button class="btn" data-close>Chiudi</button></div>`, (el) => {
+    <div class="sheet-actions"><button class="btn" data-close>Chiudi</button><button class="btn" id="tutteRic">Tutte le ricette</button></div>`, (el) => {
+    $('#tutteRic', el).addEventListener('click', () => { closeSheet(); setTab('ricette'); });
     const baseOpen = () => $('details.base', el)?.open;
     $$('#tempoSeg button', el).forEach((b) => b.addEventListener('click', () => {
       ui.tempoStasera = b.dataset.t === '' ? null : Number(b.dataset.t);
@@ -2277,6 +2280,69 @@ function openStasera() {
       openRecipeSheet(x.r, 'cena', openStasera, x.ing ? x : null);
     }));
   });
+}
+
+/* ================================================================
+   VISTA: RICETTE (ricettario completo, separato da "Cosa mangio stasera")
+   ================================================================ */
+
+const cucinaDi = (r) => (r.base ? r.cucina || 'italiana' : 'le tue ricette');
+const cucinaLabel = (c) => c[0].toUpperCase() + c.slice(1);
+
+function ricetteFiltrate() {
+  const q = norm(ui.ricCerca).split(' ').filter(Boolean);
+  return allRecipes().filter((r) => {
+    if (ui.ricCucina && cucinaDi(r) !== ui.ricCucina) return false;
+    if (ui.ricTag && !recipeTags(r).includes(ui.ricTag)) return false;
+    if (!q.length) return true;
+    const hay = ` ${norm([r.nome, ...(r.alias || []), cucinaDi(r), ...r.ingredienti.map((i) => foodById(i.fid)?.nome || '')].join(' '))} `;
+    return q.every((w) => hay.includes(w));
+  });
+}
+
+function ricettaLi(r) {
+  return `<button class="li" data-open-recipe="${esc(r.id)}"><span class="nm">${esc(r.nome)}<small class="num">${recipeMeta(r)}</small></span><span class="muted">›</span></button>`;
+}
+
+function ricetteListHtml() {
+  const rs = ricetteFiltrate();
+  if (!rs.length) return '<div class="card empty">Nessuna ricetta con questi filtri.</div>';
+  const byName = (a, b) => a.nome.localeCompare(b.nome, 'it');
+  if (ui.ricCucina || ui.ricCerca.trim()) {
+    return `<p class="small muted num">${rs.length} ${rs.length === 1 ? 'ricetta' : 'ricette'}</p><section class="card" style="padding:0 16px"><div class="list" style="border-top:0">${rs.sort(byName).map(ricettaLi).join('')}</div></section>`;
+  }
+  const ordine = ['le tue ricette', ...CUCINE];
+  const gruppi = ordine.map((c) => [c, rs.filter((r) => cucinaDi(r) === c).sort(byName)]).filter(([, l]) => l.length);
+  return gruppi.map(([c, l]) => `<details class="sec"${c === 'le tue ricette' ? ' open' : ''}><summary>${esc(cucinaLabel(c))}<span class="muted small num" style="margin-left:8px;font-weight:500">${l.length}</span></summary><div class="body"><div class="list">${l.map(ricettaLi).join('')}</div></div></details>`).join('');
+}
+
+function viewRicette() {
+  const all = allRecipes();
+  const cucine = ['le tue ricette', ...CUCINE].filter((c) => all.some((r) => cucinaDi(r) === c));
+  header('Ricette', `${all.length} ricette da ${CUCINE.filter((c) => all.some((r) => cucinaDi(r) === c)).length} cucine`, false);
+  const chip = (attr, v, label, on) => `<button class="chip sm" ${attr}="${esc(v)}" aria-pressed="${on}">${esc(label)}</button>`;
+  return `<button class="btn primary block" data-act="stasera" style="margin-bottom:12px">Cosa mangio stasera?</button>
+    <input class="inp" id="rcCerca" type="search" placeholder="Cerca per nome, ingrediente o cucina" value="${esc(ui.ricCerca)}" autocomplete="off" autocapitalize="off" enterkeyhint="search">
+    <div class="hchips">${chip('data-rc-cucina', '', 'Tutte le cucine', !ui.ricCucina)}${cucine.map((c) => chip('data-rc-cucina', c, `${cucinaLabel(c)} · ${all.filter((r) => cucinaDi(r) === c).length}`, ui.ricCucina === c)).join('')}</div>
+    <div class="hchips">${chip('data-rc-tag', '', 'Tutti i tag', !ui.ricTag)}${RECIPE_TAGS.map((t) => chip('data-rc-tag', t, t, ui.ricTag === t)).join('')}</div>
+    <div id="rcList">${ricetteListHtml()}</div>
+    <button class="btn ghost block" data-act="recipe-new" style="margin-top:12px">Nuova ricetta</button>`;
+}
+
+function bindRicette(main) {
+  $$('.hchips', main).forEach((row) => {
+    const on = $('[aria-pressed="true"]', row);
+    if (on) row.scrollLeft = on.offsetLeft - row.offsetLeft - 16;
+  });
+  const inp = $('#rcCerca', main);
+  inp.addEventListener('input', () => { ui.ricCerca = inp.value; $('#rcList', main).innerHTML = ricetteListHtml(); });
+  $$('[data-rc-cucina],[data-rc-tag]', main).forEach((b) => b.addEventListener('click', () => {
+    if (b.dataset.rcCucina != null) ui.ricCucina = b.dataset.rcCucina;
+    else ui.ricTag = b.dataset.rcTag;
+    const y = window.scrollY;
+    render();
+    window.scrollTo(0, y);
+  }));
 }
 
 /* ================================================================
@@ -2666,7 +2732,10 @@ function bindView(main) {
     if (t.dataset.goto) { ui.day = t.dataset.goto; setTab('oggi'); return; }
     if (t.dataset.food) return openFoodEditor(t.dataset.food);
     if (t.dataset.recipe) return openRecipeEditor(t.dataset.recipe);
-    if (t.dataset.openRecipe) return openRecipeSheet(recipeById(t.dataset.openRecipe));
+    if (t.dataset.openRecipe) {
+      if (ui.tab === 'ricette') { ui.day = todayKey(); return openRecipeSheet(recipeById(t.dataset.openRecipe), defaultPasto()); }
+      return openRecipeSheet(recipeById(t.dataset.openRecipe));
+    }
     if (t.dataset.r != null && t.closest('#rangeSeg')) { ui.pesoRange = Number(t.dataset.r); return render(); }
     if (t.dataset.presetDel) {
       const p = S.preset.find((x) => x.id === t.dataset.presetDel);

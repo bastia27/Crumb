@@ -166,6 +166,10 @@ main { padding: 4px 16px calc(var(--tabbar) + var(--safe-b) + 96px); max-width: 
 .tip-recipes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .tagfilter { margin-bottom: 10px; }
 select.cucina { margin-bottom: 8px; }
+.hchips { display: flex; gap: 8px; overflow-x: auto; margin: 10px -16px 0; padding: 0 16px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.hchips::-webkit-scrollbar { display: none; }
+.hchips .chip { flex-shrink: 0; }
+#rcList { margin-top: 14px; }
 .chip.sm { min-height: 32px; padding: 4px 10px; font-size: 13px; }
 .steps { margin: 10px 0 14px; padding-left: 20px; font-size: 14px; display: grid; gap: 4px; }
 .ing { padding: 6px 0; border-bottom: 1px solid var(--line); }
@@ -218,7 +222,7 @@ details.come > summary { color: var(--accent); font-weight: 600; font-size: 14px
 /* ——— tab bar ——— */
 .tabs {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 7;
-  display: grid; grid-template-columns: repeat(5, 1fr);
+  display: grid; grid-template-columns: repeat(6, 1fr);
   padding-bottom: var(--safe-b); height: calc(var(--tabbar) + var(--safe-b));
   background: color-mix(in srgb, var(--card) 94%, transparent);
   -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
@@ -226,7 +230,7 @@ details.come > summary { color: var(--accent); font-weight: 600; font-size: 14px
 }
 .tabs button {
   border: 0; background: none; color: var(--muted); display: flex; flex-direction: column;
-  align-items: center; justify-content: center; gap: 3px; font-size: 11px; font-weight: 600;
+  align-items: center; justify-content: center; gap: 3px; font-size: 10px; font-weight: 600; letter-spacing: -.01em;
 }
 .tabs button[aria-current="page"] { color: var(--accent); }
 .tabs svg { width: 24px; height: 24px; }
@@ -363,6 +367,8 @@ details.sec > .body { padding: 0 16px 16px; }
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-5 4 3 8-8"/><path d="M15 7h5v5"/></svg>Peso</button>
   <button data-tab="settimana">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>Settimana</button>
+  <button data-tab="ricette">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5z"/><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3"/><path d="M9 7h6M9 10.5h4"/></svg>Ricette</button>
   <button data-tab="storico">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>Storico</button>
   <button data-tab="impostazioni">
@@ -372,8 +378,8 @@ details.sec > .body { padding: 0 16px 16px; }
 <div class="backdrop" id="backdrop"><div class="sheet" id="sheet" role="dialog" aria-modal="true"></div></div>
 <div class="toast" id="toast" role="status"><span id="toastMsg"></span><button id="toastBtn"></button></div>
 
-<script src="data.js?v=21"></script>
-<script src="ricette.js?v=21"></script>
-<script src="app.js?v=21"></script>
+<script src="data.js?v=22"></script>
+<script src="ricette.js?v=22"></script>
+<script src="app.js?v=22"></script>
 </body>
 </html>
