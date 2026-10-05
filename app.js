@@ -7,7 +7,7 @@
    ================================================================ */
 
 const LS_KEY = 'crumb:v1';
-const APP_VERSION = 22; // da allineare con ?v= in index.html e CACHE in sw.js
+const APP_VERSION = 23; // da allineare con ?v= in index.html e CACHE in sw.js
 const PASTI = [
   { id: 'colazione', nome: 'Colazione' },
   { id: 'pranzo', nome: 'Pranzo' },
@@ -1190,7 +1190,7 @@ async function copyText(text) {
    UI: SHEET, TOAST, NAVIGAZIONE
    ================================================================ */
 
-const ui = { tempoStasera: (() => { try { const v = localStorage.getItem('crumb:tempo'); return v ? Number(v) : null; } catch (e) { return null; } })(), tab: 'oggi', day: todayKey(), weekEnd: todayKey(), pasto: defaultPasto(), pesoRange: 30, quick: 'recenti', recipeTag: '', recipeCucina: '', ricCerca: '', ricCucina: '', ricTag: '' };
+const ui = { tempoStasera: (() => { try { const v = localStorage.getItem('crumb:tempo'); return v ? Number(v) : null; } catch (e) { return null; } })(), tab: 'oggi', day: todayKey(), weekEnd: todayKey(), pasto: defaultPasto(), pesoRange: 30, quick: 'recenti', recipeTag: '', recipeCucina: '', ricCerca: '', ricCucina: '', ricTag: '', ricTempo: null };
 
 function defaultPasto() {
   const h = new Date().getHours();
@@ -2294,6 +2294,7 @@ function ricetteFiltrate() {
   return allRecipes().filter((r) => {
     if (ui.ricCucina && cucinaDi(r) !== ui.ricCucina) return false;
     if (ui.ricTag && !recipeTags(r).includes(ui.ricTag)) return false;
+    if (ui.ricTempo != null && (r.tempo || 0) > ui.ricTempo) return false;
     if (!q.length) return true;
     const hay = ` ${norm([r.nome, ...(r.alias || []), cucinaDi(r), ...r.ingredienti.map((i) => foodById(i.fid)?.nome || '')].join(' '))} `;
     return q.every((w) => hay.includes(w));
@@ -2301,20 +2302,22 @@ function ricetteFiltrate() {
 }
 
 function ricettaLi(r) {
-  return `<button class="li" data-open-recipe="${esc(r.id)}"><span class="nm">${esc(r.nome)}<small class="num">${recipeMeta(r)}</small></span><span class="muted">›</span></button>`;
+  return `<button class="li" data-open-recipe="${esc(r.id)}"><span class="nm">${esc(r.nome)}<small class="num">${(r.tag || []).includes('da-comprare') ? 'da comprare · ' : ''}${recipeMeta(r)}</small></span><span class="muted">›</span></button>`;
 }
 
 function ricetteListHtml() {
   const rs = ricetteFiltrate();
   if (!rs.length) return '<div class="card empty">Nessuna ricetta con questi filtri.</div>';
   const byName = (a, b) => a.nome.localeCompare(b.nome, 'it');
-  if (ui.ricCucina || ui.ricCerca.trim()) {
-    return `<p class="small muted num">${rs.length} ${rs.length === 1 ? 'ricetta' : 'ricette'}</p><section class="card" style="padding:0 16px"><div class="list" style="border-top:0">${rs.sort(byName).map(ricettaLi).join('')}</div></section>`;
+  if (ui.ricCucina || ui.ricCerca.trim() || ui.ricTempo != null) {
+    return `<p class="small muted num">${rs.length} ${rs.length === 1 ? 'ricetta' : 'ricette'}</p><section class="card" style="padding:0 16px"><div class="list" style="border-top:0">${rs.sort(ui.ricTempo != null ? (a, b) => (a.tempo || 0) - (b.tempo || 0) || byName(a, b) : byName).map(ricettaLi).join('')}</div></section>`;
   }
   const ordine = ['le tue ricette', ...CUCINE];
   const gruppi = ordine.map((c) => [c, rs.filter((r) => cucinaDi(r) === c).sort(byName)]).filter(([, l]) => l.length);
   return gruppi.map(([c, l]) => `<details class="sec"${c === 'le tue ricette' ? ' open' : ''}><summary>${esc(cucinaLabel(c))}<span class="muted small num" style="margin-left:8px;font-weight:500">${l.length}</span></summary><div class="body"><div class="list">${l.map(ricettaLi).join('')}</div></div></details>`).join('');
 }
+
+const RIC_TEMPI = [[5, '5 min'], [15, '15 min'], [30, '30 min'], [60, '1 ora'], [null, 'Tutte']];
 
 function viewRicette() {
   const all = allRecipes();
@@ -2323,6 +2326,7 @@ function viewRicette() {
   const chip = (attr, v, label, on) => `<button class="chip sm" ${attr}="${esc(v)}" aria-pressed="${on}">${esc(label)}</button>`;
   return `<button class="btn primary block" data-act="stasera" style="margin-bottom:12px">Cosa mangio stasera?</button>
     <input class="inp" id="rcCerca" type="search" placeholder="Cerca per nome, ingrediente o cucina" value="${esc(ui.ricCerca)}" autocomplete="off" autocapitalize="off" enterkeyhint="search">
+    <div class="seg" id="rcTempo" style="margin:10px 0 0">${RIC_TEMPI.map(([v, l]) => `<button data-rc-tempo="${v ?? ''}" aria-pressed="${ui.ricTempo === v}">${l}</button>`).join('')}</div>
     <div class="hchips">${chip('data-rc-cucina', '', 'Tutte le cucine', !ui.ricCucina)}${cucine.map((c) => chip('data-rc-cucina', c, `${cucinaLabel(c)} · ${all.filter((r) => cucinaDi(r) === c).length}`, ui.ricCucina === c)).join('')}</div>
     <div class="hchips">${chip('data-rc-tag', '', 'Tutti i tag', !ui.ricTag)}${RECIPE_TAGS.map((t) => chip('data-rc-tag', t, t, ui.ricTag === t)).join('')}</div>
     <div id="rcList">${ricetteListHtml()}</div>
@@ -2336,8 +2340,9 @@ function bindRicette(main) {
   });
   const inp = $('#rcCerca', main);
   inp.addEventListener('input', () => { ui.ricCerca = inp.value; $('#rcList', main).innerHTML = ricetteListHtml(); });
-  $$('[data-rc-cucina],[data-rc-tag]', main).forEach((b) => b.addEventListener('click', () => {
-    if (b.dataset.rcCucina != null) ui.ricCucina = b.dataset.rcCucina;
+  $$('[data-rc-cucina],[data-rc-tag],[data-rc-tempo]', main).forEach((b) => b.addEventListener('click', () => {
+    if (b.dataset.rcTempo != null) ui.ricTempo = b.dataset.rcTempo === '' ? null : Number(b.dataset.rcTempo);
+    else if (b.dataset.rcCucina != null) ui.ricCucina = b.dataset.rcCucina;
     else ui.ricTag = b.dataset.rcTag;
     const y = window.scrollY;
     render();

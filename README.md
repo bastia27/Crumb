@@ -10,7 +10,7 @@ Dove servirebbe un giudizio qualitativo, CRUMB esporta i dati come testo da inco
 - **Oggi**: barre kcal/proteine/carbo netti/fibra, voto, alert (sodio, fibra concentrata, olio e formaggi), range per le porzioni non pesate, suggerimento con ricette, "Cosa mangio stasera", "Copia giornata".
 - **Peso**: pesata del mattino e media mobile a 7 giorni.
 - **Settimana**: ultimi 7 giorni, medie con scarto dal target, deficit e grasso stimato (÷ 7700), giorni sotto 1800 kcal, regole per tag, "Copia settimana".
-- **Ricette**: ricettario completo (190 ricette, 16 cucine) con ricerca per nome o ingrediente, filtri per cucina e tag; da qui si apre anche "Cosa mangio stasera".
+- **Ricette**: ricettario completo (190 ricette, 16 cucine) con ricerca per nome o ingrediente, filtri per tempo, cucina e tag; da qui si apre anche "Cosa mangio stasera".
 - **Storico** e **Impostazioni** (target, soglie del voto, regole, alimenti, ricette, backup JSON).
 
 ## File
