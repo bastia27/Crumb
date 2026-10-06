@@ -11,7 +11,9 @@ Dove servirebbe un giudizio qualitativo, CRUMB esporta i dati come testo da inco
 - **Peso**: pesata del mattino e media mobile a 7 giorni.
 - **Settimana**: ultimi 7 giorni, medie con scarto dal target, deficit e grasso stimato (÷ 7700), giorni sotto 1800 kcal, regole per tag, "Copia settimana".
 - **Ricette**: ricettario completo (266 ricette, 16 cucine, 123 di pesce) con ricerca per nome o ingrediente, filtri per tempo, cucina e tag; da qui si apre anche "Cosa mangio stasera".
-- **Storico** e **Impostazioni** (target, soglie del voto, regole, alimenti, ricette, backup JSON).
+- **Storico** e **Impostazioni**: metabolismo basale (Mifflin-St Jeor) e fabbisogno giornaliero (basale × fattore di attività), fabbisogno stimato dai tuoi dati dopo 3 settimane, target kcal di default fabbisogno − 500, soglie del voto, regole, alimenti, ricette, backup JSON.
+
+Carboidrati: il database salva `carboidrati_totali` e `fibra`; i netti (totali − fibra) sono calcolati e sono gli unici usati in barre, totali, voto e settimana.
 
 ## File
 - `index.html` — struttura e stile

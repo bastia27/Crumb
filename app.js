@@ -7,7 +7,7 @@
    ================================================================ */
 
 const LS_KEY = 'crumb:v1';
-const APP_VERSION = 24; // da allineare con ?v= in index.html e CACHE in sw.js
+const APP_VERSION = 25; // da allineare con ?v= in index.html e CACHE in sw.js
 const PASTI = [
   { id: 'colazione', nome: 'Colazione' },
   { id: 'pranzo', nome: 'Pranzo' },
@@ -17,8 +17,13 @@ const PASTI = [
 
 const DEFAULT_SETTINGS = {
   altezza: 178,
-  peso: null,
-  fabbisogno: 2500,
+  peso: null,           // usato solo se non ci sono pesate recenti
+  eta: 36,
+  sesso: 'M',
+  attivita: 1.3,        // fattore di attività (vedi ATTIVITA)
+  fabbisogno: 2500,     // calcolato: formula, oppure fabbisognoDaDati se scelto
+  fabbisognoDaDati: null,
+  kcalAuto: true,       // target kcal = fabbisogno − 500 (±100)
   kcalMin: 2000,
   kcalMax: 2200,
   protMin: 150,
@@ -119,6 +124,12 @@ function migrate(data) {
   const s = Object.assign(base, data || {});
   s.settings = Object.assign(structuredClone(DEFAULT_SETTINGS), s.settings || {});
   if (!Array.isArray(s.settings.regole) || JSON.stringify(s.settings.regole) === REGOLE_V1) s.settings.regole = structuredClone(DEFAULT_SETTINGS.regole);
+  // v25: target kcal automatico solo se l'utente non aveva toccato i default 2000–2200.
+  const old = data?.settings;
+  if (old && old.kcalAuto === undefined) s.settings.kcalAuto = old.kcalMin == null || (old.kcalMin === 2000 && old.kcalMax === 2200);
+  // v25: alimenti salvati col vecchio formato (cn netti) → carboidrati_totali + fibra.
+  s.alimenti.forEach(conNetti);
+  Object.values(s.override || {}).forEach((o) => { if (o.cn != null && o.carboidrati_totali == null) conNetti(o); });
   return s;
 }
 
@@ -182,15 +193,36 @@ function weekStart(k) {
    ALIMENTI E RICETTE
    ================================================================ */
 
+// Il database salva carboidrati_totali e fibra. I netti (totali − fibra) sono un campo calcolato,
+// "cn", non salvato (non enumerabile): tutto il resto dell'app ragiona solo sui netti.
+function conNetti(a) {
+  if (!a) return a;
+  if (a.carboidrati_totali == null) {
+    const own = Object.getOwnPropertyDescriptor(a, 'cn');
+    const cn = own && 'value' in own ? Number(own.value) || 0 : 0;
+    const f = Number(a.fibra ?? (Object.getOwnPropertyDescriptor(a, 'f')?.value)) || 0;
+    a.carboidrati_totali = Math.round((cn + f) * 10) / 10;
+    a.fibra = f;
+    delete a.cn;
+    delete a.f;
+  }
+  if (!Object.getOwnPropertyDescriptor(a, 'cn')?.get) {
+    Object.defineProperty(a, 'cn', { get() { return Math.max(0, Math.round(((Number(this.carboidrati_totali) || 0) - (Number(this.fibra) || 0)) * 10) / 10); }, enumerable: false, configurable: true });
+    Object.defineProperty(a, 'f', { get() { return Number(this.fibra) || 0; }, enumerable: false, configurable: true });
+  }
+  return a;
+}
+const carboTotali = (per) => (per.ct != null ? per.ct : (per.cn || 0) + (per.f || 0));
+
 function allFoods() {
   const hidden = new Set(S.nascosti);
-  const base = ALIMENTI_BASE.filter((a) => !hidden.has(a.id)).map((a) => (S.override[a.id] ? { ...a, ...S.override[a.id], base: true } : { ...a, base: true }));
-  return base.concat(S.alimenti);
+  const base = ALIMENTI_BASE.filter((a) => !hidden.has(a.id)).map((a) => conNetti(S.override[a.id] ? { ...a, ...S.override[a.id], base: true } : { ...a, base: true }));
+  return base.concat(S.alimenti.map(conNetti));
 }
 let _foodIndex = null;
 function foodById(id) {
   if (!_foodIndex) _foodIndex = new Map(allFoods().map((a) => [a.id, a]));
-  return _foodIndex.get(id) || S.alimenti.find((a) => a.id === id) || ALIMENTI_BASE.find((a) => a.id === id);
+  return _foodIndex.get(id) || conNetti(S.alimenti.find((a) => a.id === id) || ALIMENTI_BASE.find((a) => a.id === id));
 }
 function invalidateFoods() {
   _foodIndex = null;
@@ -221,7 +253,7 @@ function recipeInfo(r) {
 }
 
 function perOf(a) {
-  return { kcal: a.kcal, p: a.p, cn: a.cn, f: a.f, na: a.na };
+  return { kcal: a.kcal, p: a.p, cn: a.cn, f: a.f, na: a.na, ct: a.carboidrati_totali };
 }
 
 function makeVoce(food, g) {
@@ -355,7 +387,38 @@ function weightMA(k) {
 }
 // Fabbisogno misurato dai dati: kcal medie mangiate + calo della media mobile del peso × 7.700 / giorni.
 // Finestra: ultimi 28 giorni fino a ieri (oggi solo se la giornata è già piena).
-const MISURA = { giorni: 28, minPasti: 14, minPesate: 8 };
+const MISURA = { giorni: 21, minPasti: 14, minPesate: 6 };
+const ATTIVITA = [[1.2, 'Sedentario'], [1.3, 'Poco attivo'], [1.45, 'Moderatamente attivo'], [1.6, 'Attivo']];
+const DEFICIT_TARGET = 500;
+const attivitaNome = (x) => (ATTIVITA.find(([v]) => v === x) || [x, `fattore ${x}`])[1];
+
+// Peso per la formula: media mobile delle pesate se ce n'è una negli ultimi 14 giorni, altrimenti il campo Peso.
+function pesoFormula() {
+  const k = latestWeightKey();
+  if (k && k >= addDays(todayKey(), -14)) return { kg: weightMA(k), fonte: 'pesate' };
+  if (S.settings.peso) return { kg: S.settings.peso, fonte: 'campo' };
+  if (k) return { kg: S.pesi[k], fonte: 'pesate' };
+  return null;
+}
+// Mifflin-St Jeor: BMR = 10 × kg + 6,25 × cm − 5 × anni + 5 (uomo) / − 161 (donna). Fabbisogno = BMR × attività.
+function calcoloFabbisogno() {
+  const st = S.settings;
+  const pw = pesoFormula();
+  if (!pw || !st.altezza || !st.eta) return null;
+  const bmr = r10(10 * pw.kg + 6.25 * st.altezza - 5 * st.eta + (st.sesso === 'F' ? -161 : 5));
+  return { bmr, teorico: r10(bmr * (st.attivita || 1.3)), peso: pw };
+}
+// Allinea fabbisogno e (se automatico) il target kcal. Chiamata a ogni render.
+function syncFabbisogno() {
+  const st = S.settings;
+  const c = calcoloFabbisogno();
+  st.fabbisogno = st.fabbisognoDaDati || (c ? c.teorico : st.fabbisogno);
+  if (st.kcalAuto) {
+    const t = r10(st.fabbisogno - DEFICIT_TARGET);
+    st.kcalMin = t - 100;
+    st.kcalMax = t + 100;
+  }
+}
 function misuraFabbisogno(endKey = todayKey()) {
   const st = S.settings;
   const end = dayHasData(endKey) && dayTotals(endKey).kcal >= st.kcalSoglia ? endKey : addDays(endKey, -1);
@@ -377,16 +440,23 @@ function misuraFabbisogno(endKey = todayKey()) {
 function misuraHtml() {
   const m = misuraFabbisogno();
   const st = S.settings;
+  const c = calcoloFabbisogno();
   if (!m.ok) {
     return `<p class="small muted num">${m.implausibile
-      ? `Fabbisogno misurato fuori scala (${fmt(m.tdee)} kcal): probabilmente mancano delle registrazioni.`
-      : `Fabbisogno misurato: servono almeno ${MISURA.minPasti} giorni con pasti e ${MISURA.minPesate} pesate negli ultimi ${MISURA.giorni}. Ora: ${m.pasti} giorni e ${m.pesate} pesate.`}</p>`;
+      ? `Fabbisogno stimato dai tuoi dati fuori scala (${fmt(m.tdee)} kcal): probabilmente mancano delle registrazioni.`
+      : `Fabbisogno stimato dai tuoi dati: servono ${MISURA.giorni / 7} settimane, con almeno ${MISURA.minPasti} giorni di pasti e ${MISURA.minPesate} pesate negli ultimi ${MISURA.giorni} giorni. Ora: ${m.pasti} giorni e ${m.pesate} pesate.`}</p>`;
   }
-  const diff = m.tdee - st.fabbisogno;
-  return `<div class="misura"><div class="row"><div style="flex:1"><b class="num">Fabbisogno misurato: ${fmt(m.tdee)} kcal</b>
-    <div class="small muted num">impostato ${fmt(st.fabbisogno)} (${diff >= 0 ? '+' : '−'}${fmt(Math.abs(diff))}) · ${m.pasti} giorni, media ${fmt(m.kcal)} kcal, peso ${m.delta <= 0 ? '−' : '+'}${fmt(Math.abs(m.delta), 1)} kg</div></div>
-    ${Math.abs(diff) >= 10 ? '<button class="btn sm" data-act="usa-fabbisogno">Usa</button>' : ''}</div>
-    <div class="small muted">Se salti delle registrazioni il valore esce più basso del reale.</div></div>`;
+  const rif = c ? c.teorico : st.fabbisogno;
+  const diff = m.tdee - rif;
+  const sett = (m.delta / (MISURA.giorni - 1)) * 7;
+  const inUso = st.fabbisognoDaDati != null;
+  const lontano = Math.abs(diff) > 300;
+  return `<div class="misura"><div class="row"><span style="flex:1">Fabbisogno stimato dai tuoi dati</span><b class="num">${fmt(m.tdee)} kcal</b></div>
+    <div class="small muted num">${fmt(m.kcal)} kcal medie al giorno ${sett <= 0 ? '+' : '−'} ${fmt(Math.abs(sett), 2)} kg/settimana di media mobile × 7700 / 7 · ${m.pasti} giorni con pasti, ${m.pesate} pesate</div>
+    ${lontano && !inUso ? `<div class="small txt-bad num">Differisce di ${fmt(Math.abs(diff))} kcal dal fabbisogno teorico (${fmt(rif)}): il dato reale è più affidabile della formula.</div>` : !inUso ? `<div class="small muted num">In linea con la formula (${diff >= 0 ? '+' : '−'}${fmt(Math.abs(diff))} kcal).</div>` : ''}
+    ${inUso ? `<div class="row"><span class="small txt-good" style="flex:1">In uso al posto della formula.</span><button class="btn sm" data-act="fabbisogno-formula">Torna alla formula</button></div>`
+    : `<button class="btn ${lontano ? 'primary' : ''} sm" data-act="usa-fabbisogno">Usa quello reale (${fmt(m.tdee)} kcal)</button>`}
+    <div class="small muted">Se salti delle registrazioni la stima esce più bassa del reale.</div></div>`;
 }
 
 function latestWeightKey(until = todayKey()) {
@@ -1101,7 +1171,7 @@ function nutr(a, g) {
 }
 function nutrPer(per, g) {
   const k = g / 100;
-  return { kcal: per.kcal * k, p: per.p * k, cn: per.cn * k, f: per.f * k, na: per.na * k };
+  return { kcal: per.kcal * k, p: per.p * k, cn: per.cn * k, f: per.f * k, na: per.na * k, ct: carboTotali(per) * k };
 }
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const tagLabel = (t) => cap(t.replace(/-/g, ' '));
@@ -1283,6 +1353,7 @@ function header(title, sub, nav) {
 }
 
 function render() {
+  syncFabbisogno();
   const main = $('#app');
   $('#fab').hidden = ui.tab !== 'oggi';
   if (ui.tab === 'oggi') main.innerHTML = viewOggi();
@@ -1511,7 +1582,7 @@ function openQtySheet({ title, g, food, recipe, porzG, inc = 0 }) {
     const per = food ? perOf(food) : recipeInfo(recipe).per;
     const upd = () => {
       const n = nutrPer(per, num(inp.value) || 0);
-      $('#qprev', el).textContent = `${fmt(n.kcal)} kcal · P ${fmt(n.p)} g · C netti ${fmt(n.cn, 1)} g · fibra ${fmt(n.f, 1)} g`;
+      $('#qprev', el).innerHTML = `${fmt(n.kcal)} kcal · P ${fmt(n.p)} g · carbo netti ${fmt(n.cn, 1)} g · fibra ${fmt(n.f, 1)} g<br><small>carboidrati totali ${fmt(n.ct, 1)} g − fibra ${fmt(n.f, 1)} g = ${fmt(n.cn, 1)} g netti</small>`;
     };
     upd();
     inp.addEventListener('input', () => { inc = 0; upd(); });
@@ -1738,7 +1809,7 @@ function openVoceEditor(pasto, id) {
     const inp = $('#eg', el);
     const upd = () => {
       const n = nutrPer(v.per, num(inp.value) || 0);
-      $('#eprev', el).textContent = `${fmt(n.kcal)} kcal · P ${fmt(n.p)} g · C netti ${fmt(n.cn, 1)} g · fibra ${fmt(n.f, 1)} g · sodio ${fmt(n.na)} mg`;
+      $('#eprev', el).innerHTML = `${fmt(n.kcal)} kcal · P ${fmt(n.p)} g · carbo netti ${fmt(n.cn, 1)} g · fibra ${fmt(n.f, 1)} g · sodio ${fmt(n.na)} mg<br><small>carboidrati totali ${fmt(n.ct, 1)} g − fibra ${fmt(n.f, 1)} g = ${fmt(n.cn, 1)} g netti</small>`;
     };
     upd();
     inp.addEventListener('input', upd);
@@ -2451,16 +2522,34 @@ function field(id, label, val, unit = '') {
   return `<label class="f"><span>${label}${unit ? ` (${unit})` : ''}</span><input class="inp num" data-set="${id}" inputmode="decimal" value="${val ?? ''}"></label>`;
 }
 
+// Ridisegna Impostazioni mantenendo aperte le sezioni e la posizione.
+function rerenderImpostazioni() {
+  const open = $$('#app details.sec').map((d) => d.open);
+  const y = window.scrollY;
+  render();
+  $$('#app details.sec').forEach((d, i) => { if (open[i] != null) d.open = open[i]; });
+  window.scrollTo(0, y);
+}
+
 function viewImpostazioni() {
   header('Impostazioni', '', false);
   const st = S.settings;
   const last = latestWeightKey();
+  const pw = pesoFormula();
+  const fc = calcoloFabbisogno();
   return `
   <details class="sec" open><summary>Dati personali</summary><div class="body">
-    <div class="grid2">${field('altezza', 'Altezza', st.altezza, 'cm')}${field('peso', 'Peso attuale', st.peso ?? (last ? S.pesi[last] : ''), 'kg')}</div>
-    ${field('fabbisogno', 'Fabbisogno calorico stimato', st.fabbisogno, 'kcal')}
+    <div class="grid2">${field('altezza', 'Altezza', st.altezza, 'cm')}${field('eta', 'Età', st.eta, 'anni')}</div>
+    <div class="grid2">${pw && pw.fonte === 'pesate' ? `<div class="f"><span class="small muted">Peso</span><div class="num" style="padding:12px 0"><b>${fmt(pw.kg, 1)} kg</b> <span class="small muted">media delle pesate</span></div></div>` : field('peso', 'Peso', st.peso ?? (last ? S.pesi[last] : ''), 'kg')}
+      <label class="f"><span>Sesso</span><select class="inp" data-set-sel="sesso"><option value="M"${st.sesso !== 'F' ? ' selected' : ''}>Uomo</option><option value="F"${st.sesso === 'F' ? ' selected' : ''}>Donna</option></select></label></div>
+    <label class="f"><span>Livello di attività</span><select class="inp" data-set-sel="attivita">${ATTIVITA.map(([x, l]) => `<option value="${x}"${st.attivita === x ? ' selected' : ''}>${l} · × ${fmt(x, 2).replace(/0$/, '')}</option>`).join('')}</select></label>
+    ${fc ? `<div class="misura">
+      <div class="row"><span style="flex:1">Metabolismo basale: <b class="num">${fmt(fc.bmr)} kcal</b></span></div>
+      <div class="row"><span style="flex:1">Fabbisogno giornaliero: <b class="num">${fmt(fc.teorico)} kcal</b></span></div>
+      <div class="small muted num">Basale (Mifflin-St Jeor) = quello che bruci a riposo. Fabbisogno = basale × ${fmt(st.attivita, 2).replace(/0$/, '')} (${attivitaNome(st.attivita).toLowerCase()}).</div>
+    </div>` : '<p class="small txt-bad">Inserisci altezza, età e peso per calcolare metabolismo basale e fabbisogno.</p>'}
     ${misuraHtml()}
-    <p class="small muted num">Deficit al centro del target: ${fmt(st.fabbisogno - (st.kcalMin + st.kcalMax) / 2)} kcal/giorno</p>
+    <p class="small muted num">Fabbisogno in uso: ${fmt(st.fabbisogno)} kcal${st.fabbisognoDaDati ? ' (dai tuoi dati)' : ''} · target ${fmt(st.kcalMin)}–${fmt(st.kcalMax)} kcal · deficit al centro ${fmt(st.fabbisogno - (st.kcalMin + st.kcalMax) / 2)} kcal/giorno</p>
   </div></details>
 
   <details class="sec"><summary>Target giornalieri</summary><div class="body">
@@ -2468,6 +2557,8 @@ function viewImpostazioni() {
     <div class="list" id="impDieta" style="margin:6px 0 16px">${Object.entries(IMPOSTAZIONI_DIETA).map(([k, v]) => `<button class="li" data-imp="${k}" aria-pressed="${impostazioneAttiva() === k}"><span class="nm">${esc(v.nome)}<small>${esc(v.desc)}</small></span><span class="check">${impostazioneAttiva() === k ? '✓' : ''}</span></button>`).join('')}
       ${impostazioneAttiva() ? '' : '<div class="li"><span class="nm">Personalizzata<small>I valori qui sotto sono tuoi. Tocca un\'impostazione per ricaricarne i valori.</small></span><span class="check">✓</span></div>'}</div>
     <div class="grid2">${field('kcalMin', 'Kcal minimo', st.kcalMin)}${field('kcalMax', 'Kcal massimo', st.kcalMax)}</div>
+    ${st.kcalAuto ? `<p class="small muted num" style="margin-top:-6px">Automatico: fabbisogno ${fmt(st.fabbisogno)} − ${DEFICIT_TARGET} = ${fmt(st.kcalMin + 100)} kcal (±100). Si aggiorna col peso; se modifichi i campi diventa manuale.</p>`
+    : `<div class="row" style="margin:-6px 0 12px"><span class="small muted num" style="flex:1">Manuale. Default: fabbisogno − ${DEFICIT_TARGET} = ${fmt(r10(st.fabbisogno - DEFICIT_TARGET))} kcal.</span><button class="btn sm" data-act="kcal-auto">Usa il default</button></div>`}
     <div class="grid2">${field('protMin', 'Proteine minimo', st.protMin, 'g')}${field('protMax', 'Proteine massimo', st.protMax, 'g')}</div>
     <div class="grid2">${field('carboMin', 'Carbo netti minimo (0 = nessuno)', st.carboMin, 'g')}${field('carboMax', 'Carbo netti massimo', st.carboMax, 'g')}</div>
     <div class="grid2">${field('fibraMin', 'Fibra minimo', st.fibraMin, 'g')}${field('fibraMax', 'Fibra massimo', st.fibraMax, 'g')}</div>
@@ -2532,8 +2623,9 @@ function foodListHtml(q) {
 function openFoodEditor(id, preset = {}, onSaved, onBack) {
   const a = id ? foodById(id) : null;
   const isBase = a?.base;
-  const v = a || { nome: '', alias: [], kcal: '', p: '', cn: '', f: '', na: 0, porz: 100, tag: [], unita: {}, ...preset };
-  const ctot = a ? r1(a.cn) : '';
+  const v = a || { nome: '', alias: [], kcal: '', p: '', carboidrati_totali: '', fibra: '', na: 0, porz: 100, tag: [], unita: {}, ...preset };
+  const fib = a ? r1(a.fibra) : (v.fibra ?? v.f ?? '');
+  const ctot = a ? r1(a.carboidrati_totali) : (v.carboidrati_totali ?? '');
   openSheet(`<h2>${a ? 'Modifica alimento' : 'Nuovo alimento'}</h2>
     ${isBase ? '<p class="small muted">Alimento precaricato: le modifiche restano sul dispositivo e si possono annullare.</p>' : ''}
     ${a?.stima && !S.override[a.id] ? '<p class="small txt-bad">Valori stimati, non presi dall\'etichetta: correggili con quelli della confezione e salva.</p>' : ''}
@@ -2543,12 +2635,12 @@ function openFoodEditor(id, preset = {}, onSaved, onBack) {
     <div class="grid2">
       <label class="f"><span>Kcal</span><input class="inp num" id="fk" inputmode="decimal" value="${v.kcal}"></label>
       <label class="f"><span>Proteine (g)</span><input class="inp num" id="fp" inputmode="decimal" value="${v.p}"></label>
-      <label class="f"><span>Carboidrati (g, come in etichetta)</span><input class="inp num" id="fc" inputmode="decimal" value="${ctot}"></label>
-      <label class="f"><span>Fibra (g)</span><input class="inp num" id="ff" inputmode="decimal" value="${v.f}"></label>
+      <label class="f"><span>Carboidrati (g)</span><input class="inp num" id="fc" inputmode="decimal" value="${ctot}"></label>
+      <label class="f"><span>Fibra (g)</span><input class="inp num" id="ff" inputmode="decimal" value="${fib}"></label>
     </div>
-    <label class="f"><span>Tipo di etichetta</span><select class="inp" id="fct">
-      <option value="ue" selected>Europea: i carboidrati sono già senza fibra</option>
-      <option value="tot">Totali (USA o tabelle con la fibra inclusa)</option></select></label>
+    <label class="f"><span>Il numero dei carboidrati è…</span><select class="inp" id="fct">
+      <option value="tot"${a ? ' selected' : ''}>Carboidrati totali (fibra inclusa)</option>
+      <option value="ue"${a ? '' : ' selected'}>Etichetta europea: "Carboidrati" esclude già la fibra</option></select></label>
     <p class="small num" id="fnet" style="margin:-4px 0 12px"></p>
     <div class="grid2">
       <label class="f"><span>Sodio (mg)</span><input class="inp num" id="fna" inputmode="decimal" value="${v.na}"></label>
@@ -2560,7 +2652,8 @@ function openFoodEditor(id, preset = {}, onSaved, onBack) {
     const net = () => {
       const c = num($('#fc', el).value), f = num($('#ff', el).value) || 0;
       const ue = $('#fct', el).value === 'ue';
-      $('#fnet', el).textContent = c != null ? `Carboidrati netti: ${fmt(Math.max(0, ue ? c : c - f), 1)} g${ue ? ' (in Europa il valore in etichetta è già netto)' : ' (totali − fibra)'}` : '';
+      const tot = ue ? c + f : c;
+      $('#fnet', el).textContent = c != null ? `Totali ${fmt(tot, 1)} g − fibra ${fmt(f, 1)} g = carbo netti ${fmt(Math.max(0, tot - f), 1)} g${ue ? ' (in etichetta UE la fibra è già esclusa: i totali sono carboidrati + fibra)' : ''}` : '';
     };
     net();
     $('#fc', el).addEventListener('input', net);
@@ -2579,8 +2672,8 @@ function openFoodEditor(id, preset = {}, onSaved, onBack) {
         alias: $('#fa', el).value.split(',').map((s) => s.trim()).filter(Boolean),
         kcal,
         p: num($('#fp', el).value) || 0,
-        cn: r1(Math.max(0, $('#fct', el).value === 'ue' ? c : c - f)),
-        f,
+        carboidrati_totali: r1($('#fct', el).value === 'ue' ? c + f : c),
+        fibra: f,
         na: num($('#fna', el).value) || 0,
         porz: num($('#fpz', el).value) || 100,
         tag: $$('.tagchk input:checked', el).map((x) => x.value),
@@ -2590,12 +2683,12 @@ function openFoodEditor(id, preset = {}, onSaved, onBack) {
       let saved;
       if (isBase) {
         S.override[a.id] = data;
-        saved = { ...a, ...data };
+        saved = conNetti({ ...a, ...data });
       } else if (a) {
         Object.assign(a, data);
         saved = a;
       } else {
-        saved = { id: uid('u'), ...data };
+        saved = conNetti({ id: uid('u'), ...data });
         S.alimenti.push(saved);
       }
       invalidateFoods();
@@ -2770,10 +2863,22 @@ function bindView(main) {
         const m = misuraFabbisogno();
         if (!m.ok) return;
         const prima = S.settings.fabbisogno;
-        S.settings.fabbisogno = m.tdee;
+        S.settings.fabbisognoDaDati = m.tdee;
         save();
         render();
-        return toast(`Fabbisogno: ${fmt(prima)} → ${fmt(m.tdee)} kcal`, 'Annulla', () => { S.settings.fabbisogno = prima; save(); render(); });
+        return toast(`Fabbisogno: ${fmt(prima)} → ${fmt(m.tdee)} kcal`, 'Annulla', () => { S.settings.fabbisognoDaDati = null; save(); render(); });
+      }
+      case 'fabbisogno-formula': {
+        S.settings.fabbisognoDaDati = null;
+        save();
+        render();
+        return toast(`Fabbisogno dalla formula: ${fmt(S.settings.fabbisogno)} kcal`);
+      }
+      case 'kcal-auto': {
+        S.settings.kcalAuto = true;
+        save();
+        render();
+        return toast(`Target: ${fmt(S.settings.kcalMin)}–${fmt(S.settings.kcalMax)} kcal`);
       }
       case 'export-json': return exportJSON();
       case 'import-json': return $('#importFile').click();
@@ -2794,8 +2899,17 @@ function bindView(main) {
     const v = num(inp.value);
     if (v == null && k !== 'peso') { inp.value = S.settings[k]; return; }
     S.settings[k] = v;
+    if (k === 'kcalMin' || k === 'kcalMax') S.settings.kcalAuto = false;
     save();
+    if (['altezza', 'eta', 'peso', 'kcalMin', 'kcalMax'].includes(k)) rerenderImpostazioni();
     toast('Salvato');
+  }));
+  $$('[data-set-sel]', main).forEach((sel) => sel.addEventListener('change', () => {
+    const k = sel.dataset.setSel;
+    S.settings[k] = k === 'attivita' ? Number(sel.value) : sel.value;
+    save();
+    rerenderImpostazioni();
+    toast(`Fabbisogno: ${fmt(S.settings.fabbisogno)} kcal`);
   }));
   $$('[data-rule]', main).forEach((inp) => inp.addEventListener('change', () => {
     const r = S.settings.regole[inp.dataset.rule];
