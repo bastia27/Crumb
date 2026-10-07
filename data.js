@@ -266,7 +266,7 @@ ALIMENTI_BASE.push(
   _A('cornflakes', 'Corn flakes', ['cornflakes', 'corn flakes', 'cereali', 'cereali colazione'], 360, 7.5, 83, 3, 660, 30, ['cereale', 'processato']),
   _A('muesli', 'Muesli', ['muesli', 'granola'], 360, 9.8, 66, 8, 15, 40, ['cereale']),
   _A('biscotti', 'Biscotti secchi', ['biscotti', 'biscotto', 'frollini'], 450, 7, 72.5, 2.5, 300, 30, ['cereale', 'processato'], { pezzo: 8 }),
-  _A('cornetto', 'Cornetto / brioche', ['cornetto', 'brioche', 'croissant'], 406, 8, 46, 2, 400, 60, ['cereale', 'processato'], { pezzo: 60 }),
+  _A('cornetto', 'Cornetto semplice (vuoto)', ['cornetto', 'brioche', 'croissant', 'cornetto vuoto', 'cornetto semplice', 'brioche vuota'], 406, 8, 46, 2, 400, 60, ['cereale', 'processato'], { pezzo: 60 }),
   _A('pangrattato', 'Pangrattato', ['pangrattato', 'pan grattato', 'impanatura'], 395, 13, 75.5, 3.5, 700, 20, ['cereale'], { cucchiaio: 8 }),
   _A('focaccia', 'Focaccia', ['focaccia', 'focaccia genovese', 'focaccia all olio'], 300, 7, 45, 2, 800, 100, ['cereale'], { pezzo: 100, fetta: 80 }),
   _A('farina', 'Farina 00', ['farina', 'farina 00', 'farina bianca'], 340, 11, 76.2, 2.2, 1, 50, ['cereale'], { cucchiaio: 10 }),
@@ -453,6 +453,69 @@ ALIMENTI_BASE.push(
   _A('guacamole', 'Guacamole', ['guacamole'], 160, 2, 8.5, 6, 250, 60, ['grasso'], { cucchiaio: 20 }),
   _A('salsa-teriyaki', 'Salsa teriyaki', ['salsa teriyaki', 'teriyaki'], 89, 6, 15.1, 0.1, 3800, 20, ['processato'], { cucchiaio: 18 }),
 );
+
+// Pani e lievitati (valori medi per 100 g; carboidrati TOTALI, poi fibra).
+ALIMENTI_BASE.push(
+  // Pani
+  _A('pane-tipo1', 'Pane di tipo 1 / semintegrale', ['pane tipo 1', 'pane di tipo 1', 'pane semintegrale', 'pane tipo 2', 'pane di tipo 2', 'pane di farina tipo 1'], 255, 8.8, 54, 4.5, 450, 50, ['cereale'], { fetta: 30, pezzo: 60 }),
+  _A('pane-semola', 'Pane di semola (pugliese, Altamura)', ['pane di semola', 'pane pugliese', 'pane di altamura', 'pane di semola rimacinata', 'pane siciliano', 'pane di grano duro', 'pane cafone'], 265, 9, 57, 3.2, 500, 60, ['cereale'], { fetta: 50, pezzo: 80 }),
+  _A('pane-toscano', 'Pane toscano (sciapo)', ['pane toscano', 'pane sciapo', 'pane sciocco', 'pane senza sale'], 270, 8.5, 59, 3, 15, 50, ['cereale'], { fetta: 35 }),
+  _A('coppia-ferrarese', 'Coppia ferrarese', ['coppia ferrarese', 'pane ferrarese', 'ciupeta'], 285, 9, 62, 2.6, 500, 60, ['cereale'], { pezzo: 80 }),
+  _A('ciabatta', 'Ciabatta', ['ciabatta', 'ciabattina', 'pane ciabatta'], 270, 8.8, 56, 2.5, 550, 80, ['cereale'], { pezzo: 80, fetta: 30 }),
+  _A('pane-cereali', 'Pane ai cereali (multicereali)', ['pane ai cereali', 'pane multicereali', 'pane ai 5 cereali', 'pane ai 7 cereali', 'pane ai semi', 'pane con semi'], 250, 9.5, 52, 6.5, 470, 50, ['cereale'], { fetta: 35, pezzo: 70 }),
+  _A('pane-farro', 'Pane di farro', ['pane di farro', 'pane al farro'], 250, 10, 55, 5.5, 450, 50, ['cereale'], { fetta: 35 }),
+  _A('pane-kamut', 'Pane di grano Khorasan (Kamut)', ['pane di kamut', 'pane kamut', 'pane khorasan'], 255, 10.5, 55, 5, 450, 50, ['cereale'], { fetta: 35 }),
+  _A('pane-olive', 'Pane alle olive', ['pane alle olive', 'pane con le olive'], 270, 8, 50, 3, 700, 60, ['cereale'], { fetta: 35 }),
+  _A('pane-noci', 'Pane alle noci', ['pane alle noci', 'pane con le noci'], 300, 9.5, 48, 4.5, 450, 50, ['cereale'], { fetta: 35 }),
+  _A('pane-senza-glutine', 'Pane senza glutine', ['pane senza glutine', 'pane gluten free'], 260, 3, 54, 6, 500, 50, ['cereale'], { fetta: 30 }),
+  _A('pancarre', 'Pancarré / pane in cassetta', ['pancarre', 'pan carre', 'pane in cassetta', 'pane a cassetta', 'pane per tramezzini', 'pane da toast', 'pan bauletto'], 280, 8.5, 53, 3, 520, 50, ['cereale'], { fetta: 25 }),
+  _A('pancarre-integrale', 'Pancarré integrale', ['pancarre integrale', 'pan carre integrale', 'pane in cassetta integrale', 'pan bauletto integrale', 'pane da toast integrale'], 255, 9.5, 49, 6.5, 480, 50, ['cereale'], { fetta: 25 }),
+  _A('panino-latte', 'Panini al latte', ['panini al latte', 'panino al latte', 'paninetti al latte'], 320, 9, 57, 2.5, 450, 60, ['cereale', 'latticino'], { pezzo: 30 }),
+  _A('pane-hamburger', 'Panino da hamburger / hot dog', ['pane per hamburger', 'panino per hamburger', 'pane da hamburger', 'bun', 'buns', 'pane per hot dog', 'panino hot dog'], 280, 9.5, 52, 2.5, 480, 70, ['cereale'], { pezzo: 70 }),
+  _A('pan-brioche', 'Pan brioche', ['pan brioche', 'pan brioscia', 'pane brioche'], 330, 8, 56, 2, 380, 60, ['cereale', 'processato'], { fetta: 30 }),
+  _A('bagel', 'Bagel', ['bagel', 'bagels'], 257, 10, 52.5, 2.1, 450, 90, ['cereale'], { pezzo: 90 }),
+  _A('pane-carasau', 'Pane carasau', ['pane carasau', 'carasau', 'carta da musica', 'pane guttiau', 'guttiau'], 375, 12, 78, 3.5, 600, 30, ['cereale'], { pezzo: 15 }),
+  _A('pane-azzimo', 'Pane azzimo', ['pane azzimo', 'azzimo', 'matza', 'matzah'], 390, 11, 85, 3.5, 5, 30, ['cereale'], { pezzo: 30 }),
+  _A('friselle', 'Friselle', ['friselle', 'frisella', 'frise', 'frisa', 'fresella'], 370, 11, 76, 4.5, 600, 40, ['cereale'], { pezzo: 40 }),
+  _A('taralli', 'Taralli', ['taralli', 'tarallo', 'tarallini', 'taralli pugliesi'], 470, 10, 67, 3, 900, 30, ['cereale', 'processato'], { pezzo: 5 }),
+  _A('tigelle', 'Tigelle / crescentine', ['tigelle', 'tigella', 'crescentine', 'crescentina'], 310, 8, 55, 2, 600, 70, ['cereale'], { pezzo: 35 }),
+  _A('gnocco-fritto', 'Gnocco fritto / torta fritta', ['gnocco fritto', 'gnocchi fritti', 'torta fritta', 'pinzini'], 370, 7, 47, 1.5, 600, 75, ['cereale', 'processato'], { pezzo: 25 }),
+
+  // Pizze e affini (pizza intera, al piatto)
+  _A('pizza-marinara', 'Pizza marinara', ['pizza marinara', 'marinara'], 210, 6, 38, 2.5, 500, 300, ['cereale'], { pezzo: 300, fetta: 40 }),
+  _A('pizza-diavola', 'Pizza diavola (salame piccante)', ['pizza diavola', 'diavola', 'pizza al salame piccante', 'pizza salamino'], 265, 11.5, 34, 2, 750, 350, ['cereale', 'latticino', 'processato'], { pezzo: 350, fetta: 45 }),
+  _A('pizza-capricciosa', 'Pizza capricciosa', ['pizza capricciosa', 'capricciosa', 'pizza prosciutto e funghi', 'pizza cotto e funghi'], 235, 10.5, 32, 2.2, 650, 380, ['cereale', 'latticino', 'processato'], { pezzo: 380, fetta: 48 }),
+  _A('pizza-4formaggi', 'Pizza quattro formaggi', ['pizza quattro formaggi', 'pizza 4 formaggi', 'pizza ai quattro formaggi'], 280, 13, 32, 1.8, 700, 350, ['cereale', 'latticino'], { pezzo: 350, fetta: 45 }),
+  _A('pizza-verdure', 'Pizza alle verdure', ['pizza alle verdure', 'pizza vegetariana', 'pizza ortolana'], 200, 8, 32, 3, 500, 380, ['cereale', 'latticino', 'verdura'], { pezzo: 380, fetta: 48 }),
+  _A('pizza-rossa-taglio', 'Pizza rossa al taglio', ['pizza rossa', 'pizza al taglio', 'pizza al pomodoro', 'pizzetta', 'pizzette'], 240, 6, 42, 2.5, 600, 150, ['cereale'], { pezzo: 120 }),
+  _A('pizza-bianca', 'Pizza bianca (romana)', ['pizza bianca', 'pizza bianca romana', 'pizza al rosmarino', 'schiacciata', 'schiacciata toscana'], 300, 8, 52.5, 2.5, 700, 100, ['cereale'], { pezzo: 100 }),
+  _A('pinsa', 'Pinsa romana (margherita)', ['pinsa', 'pinsa romana'], 245, 9.5, 37, 2.2, 550, 300, ['cereale', 'latticino'], { pezzo: 300 }),
+  _A('calzone', 'Calzone al forno', ['calzone', 'calzone al forno', 'calzone farcito'], 265, 11, 34, 2, 650, 300, ['cereale', 'latticino', 'processato'], { pezzo: 300 }),
+  _A('panzerotto', 'Panzerotto fritto', ['panzerotto', 'panzerotti', 'panzerotto fritto'], 300, 9, 33, 1.5, 550, 150, ['cereale', 'latticino'], { pezzo: 150 }),
+
+  // Lievitati dolci
+  _A('cornetto-crema', 'Cornetto alla crema', ['cornetto alla crema', 'cornetto crema', 'brioche alla crema', 'croissant alla crema'], 375, 7, 50, 1.5, 300, 80, ['cereale', 'processato'], { pezzo: 80 }),
+  _A('cornetto-cioccolato', 'Cornetto al cioccolato / saccottino', ['cornetto al cioccolato', 'cornetto alla nutella', 'cornetto nutella', 'brioche al cioccolato', 'saccottino', 'saccottino al cioccolato', 'pain au chocolat', 'croissant al cioccolato'], 420, 7, 54, 2.5, 300, 80, ['cereale', 'processato'], { pezzo: 80 }),
+  _A('cornetto-marmellata', 'Cornetto alla marmellata', ['cornetto alla marmellata', 'cornetto marmellata', 'cornetto all albicocca', 'brioche alla marmellata'], 380, 6.5, 55, 2, 300, 80, ['cereale', 'processato'], { pezzo: 80 }),
+  _A('cornetto-integrale', 'Cornetto integrale', ['cornetto integrale', 'cornetto integrale al miele', 'brioche integrale', 'croissant integrale'], 390, 8, 52, 5, 350, 65, ['cereale', 'processato'], { pezzo: 65 }),
+  _A('krapfen', 'Krapfen / bombolone', ['krapfen', 'bombolone', 'bomboloni', 'graffa', 'graffe', 'ciambella fritta', 'ciambella zuccherata', 'donut', 'donuts'], 380, 6.5, 48.5, 1.5, 300, 80, ['cereale', 'processato'], { pezzo: 80 }),
+  _A('maritozzo', 'Maritozzo con la panna', ['maritozzo', 'maritozzi', 'maritozzo con la panna'], 360, 6, 41.5, 1.5, 150, 120, ['cereale', 'latticino', 'processato'], { pezzo: 120 }),
+  _A('baba', 'Babà al rum', ['baba', 'baba al rum'], 270, 4.5, 47, 1, 150, 60, ['cereale', 'processato'], { pezzo: 60 }),
+  _A('girella', 'Danese / girella', ['danese', 'girella', 'girelle', 'fagottino', 'treccia', 'treccina'], 390, 6, 54, 2, 300, 70, ['cereale', 'processato'], { pezzo: 70 }),
+  _A('panettone', 'Panettone', ['panettone', 'fetta di panettone'], 365, 7, 57, 1.8, 200, 80, ['cereale', 'processato'], { fetta: 80 }),
+  _A('pandoro', 'Pandoro', ['pandoro', 'fetta di pandoro'], 410, 8, 59.5, 1.2, 200, 80, ['cereale', 'processato'], { fetta: 80 }),
+  _A('colomba', 'Colomba pasquale', ['colomba', 'colomba pasquale'], 380, 7.5, 57, 1.8, 200, 80, ['cereale', 'processato'], { fetta: 80 }),
+);
+
+// Parole generiche: si propone il primo, gli altri restano a un tocco nella schermata di controllo.
+const FAMIGLIE = {
+  pane: ['pane', 'pane-integrale', 'pane-tipo1', 'pane-semola', 'pane-cereali', 'ciabatta', 'pancarre', 'pane-segale', 'pane-farro', 'pane-toscano', 'pane-proteico', 'pane-senza-glutine'],
+  pizza: ['pizza', 'pizza-marinara', 'pizza-diavola', 'pizza-capricciosa', 'pizza-4formaggi', 'pizza-verdure', 'pizza-rossa-taglio', 'pizza-bianca', 'pinsa', 'calzone'],
+  cornetto: ['cornetto', 'cornetto-crema', 'cornetto-cioccolato', 'cornetto-marmellata', 'cornetto-integrale'],
+};
+FAMIGLIE.brioche = FAMIGLIE.cornetto;
+FAMIGLIE.croissant = FAMIGLIE.cornetto;
+FAMIGLIE.panino = ['pane', 'ciabatta', 'pane-hamburger', 'panino-latte', 'pane-integrale', 'pane-tipo1'];
 
 // Grammi per le misure casalinghe quando l'alimento non ne definisce una propria.
 const MISURE_DEFAULT = {

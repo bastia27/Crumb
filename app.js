@@ -7,7 +7,7 @@
    ================================================================ */
 
 const LS_KEY = 'crumb:v1';
-const APP_VERSION = 25; // da allineare con ?v= in index.html e CACHE in sw.js
+const APP_VERSION = 26; // da allineare con ?v= in index.html e CACHE in sw.js
 const PASTI = [
   { id: 'colazione', nome: 'Colazione' },
   { id: 'pranzo', nome: 'Pranzo' },
@@ -577,7 +577,7 @@ function extractQty(seg) {
   for (let i = 0; i < toks.length; i++) {
     const t = toks[i];
     let n = null;
-    if (/^\d+([.,]\d+)?%$/.test(t) || /^0+$/.test(t)) {
+    if (/^\d+([.,]\d+)?%$/.test(t) || /^0+$/.test(t) || (/^[0-2]$/.test(t) && toks[i - 1] === 'tipo')) {
       rest.push(t);
       continue;
     }
@@ -760,6 +760,19 @@ function parseInput(text) {
     let cands = findCandidates(query);
     let best = cands[0];
     const row = { src: seg, query, qty, cands: cands.slice(0, 5), pick: null, g: null, nota: '', stato: 'ok' };
+    // Parola generica ("pane", "pizza", "cornetto"): propone il tipo più comune e mostra gli altri.
+    const fam = typeof FAMIGLIE !== 'undefined' && FAMIGLIE[rawTokens(query).join(' ')];
+    if (fam) {
+      const hidden = new Set(S.nascosti);
+      const famC = fam.filter((id) => !hidden.has(id)).map((id) => foodById(id)).filter(Boolean).map((item) => ({ kind: 'food', item, score: 1 }));
+      if (famC.length > 1) {
+        row.cands = famC;
+        row.famiglia = true;
+        setRowPick(row, famC[0]);
+        rows.push(row);
+        continue;
+      }
+    }
     // Nessun nome preciso? Prova "alimento + metodo di cottura".
     if (!best || best.score < 0.9) {
       const dm = detectMethod(query);
@@ -1616,7 +1629,7 @@ function handleFreeText(text) {
   const rows = parseInput(text);
   if (!rows.length) return;
   // Voci semplici e sicure: dentro subito. Piatti e ricette: si mostrano gli ingredienti da ritoccare.
-  if (rows.every((r) => r.stato === 'ok' && !r.ings)) {
+  if (rows.every((r) => r.stato === 'ok' && !r.ings && !r.famiglia)) {
     commitRows(rows);
     return;
   }
@@ -1670,7 +1683,9 @@ function openConfirmSheet(rows) {
       body += `<div class="small" style="color:var(--${r.stato === 'miss' ? 'bad' : 'warn'})">${r.stato === 'miss' ? 'Non riconosciuto' : 'Quale intendi?'}</div>`;
     }
     if (r.stato === 'amb-qty') body += `<div class="small" style="color:var(--warn);margin-top:6px">Quantità interpretata come porzioni: controlla i grammi.</div>`;
-    if ((r.stato === 'amb' || r.stato === 'miss') && r.cands.length) {
+    if (r.famiglia && r.cands.length) {
+      body += `<div class="small muted" style="margin-top:8px">Quale? Tocca per cambiare</div><div class="hchips" style="margin:6px 0 0;padding:0">${r.cands.map((c, j) => `<button class="chip sm" data-row="${i}" data-cand="${j}" aria-pressed="${r.pick && r.pick.item.id === c.item.id}">${esc(c.item.nome)}</button>`).join('')}</div>`;
+    } else if ((r.stato === 'amb' || r.stato === 'miss') && r.cands.length) {
       body += `<div class="chips" style="margin-top:8px">${r.cands.map((c, j) => `<button class="chip" data-row="${i}" data-cand="${j}" aria-pressed="${r.pick && r.pick.item.id === c.item.id}">${esc(c.item.nome)}</button>`).join('')}</div>`;
     }
     body += `<div class="row" style="margin-top:6px"><button class="linkbtn small" data-search="${i}">Cerca…</button>${r.stato === 'miss' ? `<button class="linkbtn small" data-create="${i}">Crea alimento</button>` : ''}<span class="spacer"></span><button class="linkbtn small" data-drop="${i}" style="color:var(--muted)">Ignora</button></div>`;
