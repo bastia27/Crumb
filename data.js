@@ -482,6 +482,8 @@ ALIMENTI_BASE.push(
   _A('gnocco-fritto', 'Gnocco fritto / torta fritta', ['gnocco fritto', 'gnocchi fritti', 'torta fritta', 'pinzini'], 370, 7, 47, 1.5, 600, 75, ['cereale', 'processato'], { pezzo: 25 }),
 
   // Pizze e affini (pizza intera, al piatto)
+  // Pizza romana (bassa e croccante) condita: 1 pizza ≈ 320 g = 800 kcal, 45 g proteine, 90 g carbo netti.
+  _A('pizza-romana', 'Pizza romana condita', ['pizza romana', 'pizza romana condita', 'pizza alla romana', 'pizza sottile', 'pizza bassa', 'pizza scrocchiarella', 'pizze romane', 'pizza tonda romana'], 250, 14.1, 30, 1.9, 560, 320, ['cereale', 'latticino'], { pezzo: 320, fetta: 40 }),
   _A('pizza-marinara', 'Pizza marinara', ['pizza marinara', 'marinara'], 210, 6, 38, 2.5, 500, 300, ['cereale'], { pezzo: 300, fetta: 40 }),
   _A('pizza-diavola', 'Pizza diavola (salame piccante)', ['pizza diavola', 'diavola', 'pizza al salame piccante', 'pizza salamino'], 265, 11.5, 34, 2, 750, 350, ['cereale', 'latticino', 'processato'], { pezzo: 350, fetta: 45 }),
   _A('pizza-capricciosa', 'Pizza capricciosa', ['pizza capricciosa', 'capricciosa', 'pizza prosciutto e funghi', 'pizza cotto e funghi'], 235, 10.5, 32, 2.2, 650, 380, ['cereale', 'latticino', 'processato'], { pezzo: 380, fetta: 48 }),
@@ -510,9 +512,10 @@ ALIMENTI_BASE.push(
 // Parole generiche: si propone il primo, gli altri restano a un tocco nella schermata di controllo.
 const FAMIGLIE = {
   pane: ['pane', 'pane-integrale', 'pane-tipo1', 'pane-semola', 'pane-cereali', 'ciabatta', 'pancarre', 'pane-segale', 'pane-farro', 'pane-toscano', 'pane-proteico', 'pane-senza-glutine'],
-  pizza: ['pizza', 'pizza-marinara', 'pizza-diavola', 'pizza-capricciosa', 'pizza-4formaggi', 'pizza-verdure', 'pizza-rossa-taglio', 'pizza-bianca', 'pinsa', 'calzone'],
+  pizza: ['pizza-romana', 'pizza', 'pizza-marinara', 'pizza-diavola', 'pizza-capricciosa', 'pizza-4formaggi', 'pizza-verdure', 'pizza-rossa-taglio', 'pizza-bianca', 'pinsa', 'calzone'],
   cornetto: ['cornetto', 'cornetto-crema', 'cornetto-cioccolato', 'cornetto-marmellata', 'cornetto-integrale'],
 };
+FAMIGLIE.pizze = FAMIGLIE.pizza;
 FAMIGLIE.brioche = FAMIGLIE.cornetto;
 FAMIGLIE.croissant = FAMIGLIE.cornetto;
 FAMIGLIE.panino = ['pane', 'ciabatta', 'pane-hamburger', 'panino-latte', 'pane-integrale', 'pane-tipo1'];
