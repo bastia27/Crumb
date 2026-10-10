@@ -1,8 +1,8 @@
 // CRUMB — service worker minimo.
 // Rete prima: se c'è connessione si usa sempre la versione più recente e la si salva;
 // offline si usa l'ultima copia salvata. Così un aggiornamento non resta mai bloccato in cache.
-const CACHE = 'crumb-v27';
-const FILES = ['./', 'index.html', 'app.js?v=27', 'data.js?v=27', 'ricette.js?v=27', 'manifest.webmanifest', 'icon.svg',
+const CACHE = 'crumb-v28';
+const FILES = ['./', 'index.html', 'app.js?v=28', 'data.js?v=28', 'ricette.js?v=28', 'manifest.webmanifest', 'icon.svg',
   'icons/apple-touch-icon.png', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png'];
 
 self.addEventListener('install', (e) => {

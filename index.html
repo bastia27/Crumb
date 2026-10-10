@@ -124,7 +124,9 @@ main { padding: 4px 16px calc(var(--tabbar) + var(--safe-b) + 96px); max-width: 
 .voto.v-bad { background: var(--bad-soft); color: var(--bad); }
 .voto.sm { width: 38px; height: 38px; font-size: 17px; border-radius: 11px; }
 .pen { margin: 0; padding: 0; list-style: none; font-size: 13px; color: var(--muted); }
-.pen li::before { content: "– "; }
+.pen li { margin-top: 2px; }
+.pen li .num { color: var(--bad); font-weight: 700; display: inline-block; min-width: 22px; }
+.pen.ok li::before { content: "✓ "; color: var(--good); }
 
 .alert { border-radius: 12px; padding: 12px 14px; font-size: 14px; margin-bottom: 12px; display: flex; gap: 10px; align-items: flex-start; }
 .alert.bad { background: var(--bad-soft); color: var(--bad); }
@@ -378,8 +380,8 @@ details.sec > .body { padding: 0 16px 16px; }
 <div class="backdrop" id="backdrop"><div class="sheet" id="sheet" role="dialog" aria-modal="true"></div></div>
 <div class="toast" id="toast" role="status"><span id="toastMsg"></span><button id="toastBtn"></button></div>
 
-<script src="data.js?v=27"></script>
-<script src="ricette.js?v=27"></script>
-<script src="app.js?v=27"></script>
+<script src="data.js?v=28"></script>
+<script src="ricette.js?v=28"></script>
+<script src="app.js?v=28"></script>
 </body>
 </html>

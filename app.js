@@ -7,7 +7,7 @@
    ================================================================ */
 
 const LS_KEY = 'crumb:v1';
-const APP_VERSION = 27; // da allineare con ?v= in index.html e CACHE in sw.js
+const APP_VERSION = 28; // da allineare con ?v= in index.html e CACHE in sw.js
 const PASTI = [
   { id: 'colazione', nome: 'Colazione' },
   { id: 'pranzo', nome: 'Pranzo' },
@@ -38,7 +38,8 @@ const DEFAULT_SETTINGS = {
   votoTetto: 7,
   fibraBassa: 15,
   fibraAlta: 35,
-  sodioMax: 3000,
+  sodioMax: 3000,       // sopra: −1 al voto e alert
+  sodioDuro: 4000,      // sopra: −2 e tetto al voto
   // Regole settimanali (ultimi 7 giorni). "@colazione" = giorni con colazione registrata.
   regole: [
     { tag: 'pesce', tipo: 'min', n: 3 },
@@ -355,21 +356,39 @@ function cleanupDay(k) {
 }
 
 // VOTO 1–10 secondo le regole della specifica.
+// Voto del giorno: si parte da 10. Le soglie sono le stesse delle barre di Oggi,
+// così una barra fuori target (non verde) toglie sempre almeno un punto.
 function voto(t, st = S.settings) {
-  let v = 10;
   const pen = [];
-  if (t.p < st.protMin * 0.7) pen.push(['Proteine sotto il 70% del target', 2]);
-  else if (t.p < st.protMin * 0.9) pen.push(['Proteine sotto il 90% del target', 1]);
-  if (t.kcal < st.kcalSoglia) pen.push([`Calorie sotto ${st.kcalSoglia}`, 2]);
-  else if (t.kcal < st.kcalMin) pen.push(['Calorie sotto il target minimo', 1]);
-  if (t.cn > st.carboMax) pen.push(['Carbo netti oltre il tetto', 1]);
-  if (t.f < st.fibraBassa) pen.push([`Fibra sotto ${st.fibraBassa} g`, 1]);
-  else if (t.f > st.fibraAlta) pen.push([`Fibra sopra ${st.fibraAlta} g`, 1]);
-  for (const [, n] of pen) v -= n;
-  let tetto = false;
-  if ((t.p < st.protDura || t.kcal < st.kcalSoglia) && v > st.votoTetto) {
+  const g = (x) => fmt(x);
+  // Proteine: rispetto al minimo del range.
+  if (t.p < st.protMin * 0.7) pen.push([`Proteine ${g(t.p)} g, sotto il 70% del minimo (${g(st.protMin * 0.7)} di ${g(st.protMin)})`, 3]);
+  else if (t.p < st.protMin * 0.9) pen.push([`Proteine ${g(t.p)} g, sotto il 90% del minimo (${g(st.protMin * 0.9)} di ${g(st.protMin)})`, 2]);
+  else if (t.p < st.protMin) pen.push([`Proteine ${g(t.p)} g, sotto il minimo di ${g(st.protMin)}`, 1]);
+  // Calorie.
+  if (t.kcal < st.kcalSoglia) pen.push([`Calorie ${g(t.kcal)}, sotto ${g(st.kcalSoglia)}`, 2]);
+  else if (t.kcal < st.kcalMin) pen.push([`Calorie ${g(t.kcal)}, sotto il minimo di ${g(st.kcalMin)}`, 1]);
+  else if (t.kcal > st.kcalMax) pen.push([`Calorie ${g(t.kcal)}, sopra il massimo di ${g(st.kcalMax)}`, 1]);
+  // Carbo netti.
+  if (t.cn > st.carboMax) pen.push([`Carbo netti ${g(t.cn)} g, sopra il massimo di ${g(st.carboMax)}`, 1]);
+  else if (st.carboMin > 0 && t.cn < st.carboMin) pen.push([`Carbo netti ${g(t.cn)} g, sotto il minimo di ${g(st.carboMin)}`, 1]);
+  // Fibra.
+  if (t.f < st.fibraMin) pen.push([`Fibra ${g(t.f)} g, sotto il minimo di ${g(st.fibraMin)}`, 1]);
+  else if (t.f > st.fibraMax) pen.push([`Fibra ${g(t.f)} g, sopra il massimo di ${g(st.fibraMax)}`, 1]);
+  // Sodio: −2 sopra la soglia dura (sostituisce il −1).
+  if (t.na > st.sodioDuro) pen.push([`Sodio ${g(t.na)} mg, sopra ${g(st.sodioDuro)}`, 2]);
+  else if (t.na > st.sodioMax) pen.push([`Sodio ${g(t.na)} mg, sopra ${g(st.sodioMax)}`, 1]);
+
+  let v = 10 - pen.reduce((s, [, n]) => s + n, 0);
+  // Regole dure: il voto non supera il tetto.
+  const motiviTetto = [];
+  if (t.p < st.protDura) motiviTetto.push(`proteine sotto ${g(st.protDura)} g`);
+  if (t.kcal < st.kcalSoglia) motiviTetto.push(`calorie sotto ${g(st.kcalSoglia)}`);
+  if (t.na > st.sodioDuro) motiviTetto.push(`sodio sopra ${g(st.sodioDuro)} mg`);
+  let tetto = null;
+  if (motiviTetto.length && v > st.votoTetto) {
     v = st.votoTetto;
-    tetto = true;
+    tetto = `Tetto a ${st.votoTetto}: ${motiviTetto.join(', ')}`;
   }
   v = clamp(v, 1, 10);
   return { v, pen, tetto };
@@ -1220,7 +1239,7 @@ function exportDay(k) {
     const kr = kcalRange(dayVoci(d));
     const vv = voto(t);
     L.push(`Totale: ${fmt(t.kcal)} kcal${kr.unc ? ` (stima ${fmtRange(kr)})` : ''} · P ${fmt(t.p)} g · C netti ${fmt(t.cn)} g · fibra ${fmt(t.f)} g · sodio ${fmt(t.na)} mg`);
-    L.push(`Voto: ${vv.v}/10${vv.pen.length ? ` (${vv.pen.map(([x, n]) => `${x.toLowerCase()} −${n}`).join('; ')})` : ''}`);
+    L.push(`Voto: ${vv.v}/10${vv.pen.length ? ` (${vv.pen.map(([x, n]) => `${x.toLowerCase()} −${n}`).join('; ')}${vv.tetto ? `; ${vv.tetto.toLowerCase()}` : ''})` : ' (nessuna penalità)'}`);
   } else L.push('Nessun alimento registrato.');
   const pl = pesoLine(k);
   if (pl) L.push(pl);
@@ -1391,7 +1410,7 @@ function barHtml(label, val, min, max, unit, kind, extra = '') {
   let foot = '';
   if (kind === 'cap') {
     const left = max - val;
-    cls = val > max ? 'bad' : val > max * 0.8 ? 'warn' : 'good';
+    cls = val > max ? 'bad' : 'good'; // verde fino al tetto: è il confine usato dal voto
     foot = left >= 0 ? `ti restano ${fmt(left)} ${unit}` : `oltre il tetto di ${fmt(-left)} ${unit}`;
   } else {
     const leftMin = min - val;
@@ -1415,6 +1434,23 @@ function barHtml(label, val, min, max, unit, kind, extra = '') {
     <div class="track"><div class="fill ${cls}" style="width:${pct}%"></div>${tickMin}${tickMax}</div>
     <div class="bar-foot ${cls === 'bad' ? 'bad' : ''}">${extra ? `${extra} · ` : ''}${foot}</div>
   </div>`;
+}
+
+// Penalità sempre elencate con il motivo; senza penalità, il controllo fatto voce per voce.
+function votoDettaglioHtml(vv, t, st) {
+  const tot = vv.pen.reduce((s, [, n]) => s + n, 0);
+  if (!vv.pen.length && !vv.tetto) {
+    const ok = [
+      `calorie ${fmt(t.kcal)} in ${fmt(st.kcalMin)}–${fmt(st.kcalMax)}`,
+      `proteine ${fmt(t.p)} ≥ ${fmt(st.protMin)} g`,
+      `carbo netti ${fmt(t.cn)} ≤ ${fmt(st.carboMax)} g`,
+      `fibra ${fmt(t.f)} in ${fmt(st.fibraMin)}–${fmt(st.fibraMax)} g`,
+      `sodio ${fmt(t.na)} ≤ ${fmt(st.sodioMax)} mg`,
+    ];
+    return `<div class="small txt-good">Nessuna penalità</div><ul class="pen ok">${ok.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>`;
+  }
+  return `<ul class="pen">${vv.pen.map(([txt, n]) => `<li><span class="num">−${n}</span> ${esc(txt)}</li>`).join('')}${vv.tetto ? `<li><b>${esc(vv.tetto)}</b></li>` : ''}</ul>
+    <div class="small muted num">10 − ${tot}${vv.tetto ? `, poi tetto a ${st.votoTetto}` : 10 - tot < 1 ? ', minimo 1' : ''} = ${vv.v}</div>`;
 }
 
 function viewOggi() {
@@ -1445,8 +1481,7 @@ function viewOggi() {
     const vv = voto(t);
     h += `<section class="card"><div class="score"><div class="voto ${votoClass(vv.v)} num">${vv.v}</div><div>
       <b>${k === todayKey() ? 'Voto provvisorio' : 'Voto del giorno'}</b>
-      ${vv.pen.length ? `<ul class="pen">${vv.pen.map(([txt, n]) => `<li>${esc(txt)} (−${n})</li>`).join('')}${vv.tetto ? `<li>Tetto a ${st.votoTetto}: mangiare troppo poco è un errore</li>` : ''}</ul>` : '<div class="small muted">Nessuna penalità</div>'}
-      <div class="small muted num">Sodio ${fmt(t.na)} mg</div>
+      ${votoDettaglioHtml(vv, t, st)}
     </div></div></section>`;
   }
 
@@ -2581,9 +2616,14 @@ function viewImpostazioni() {
   </div></details>
 
   <details class="sec"><summary>Regole del voto</summary><div class="body">
-    <p class="small muted">Si parte da 10. −2 proteine &lt;70% del minimo, −1 &lt;90%. −2 kcal sotto la soglia bassa, −1 sotto il minimo. −1 carbo netti oltre il tetto. −1 fibra fuori dall'intervallo. Con proteine o kcal sotto le soglie dure il voto non supera il tetto.</p>
+    <p class="small muted">Si parte da 10, con le stesse soglie delle barre: una barra non verde toglie sempre almeno un punto.<br>
+      Proteine: −1 sotto il minimo, −2 sotto il 90%, −3 sotto il 70%.<br>
+      Calorie: −1 fuori dal range, −2 sotto la soglia bassa.<br>
+      Carbo netti: −1 fuori dal range. Fibra: −1 fuori dal range.<br>
+      Sodio: −1 sopra la soglia alert, −2 sopra la soglia dura.<br>
+      Tetto al voto con proteine sotto la soglia dura, calorie sotto la soglia bassa o sodio sopra la soglia dura. Minimo 1.</p>
     <div class="grid2">${field('kcalSoglia', 'Soglia kcal bassa', st.kcalSoglia)}${field('protDura', 'Soglia dura proteine', st.protDura, 'g')}</div>
-    <div class="grid3">${field('fibraBassa', 'Fibra bassa', st.fibraBassa, 'g')}${field('fibraAlta', 'Fibra alta', st.fibraAlta, 'g')}${field('votoTetto', 'Tetto voto', st.votoTetto)}</div>
+    <div class="grid2">${field('sodioDuro', 'Soglia dura sodio', st.sodioDuro, 'mg')}${field('votoTetto', 'Tetto voto', st.votoTetto)}</div>
   </div></details>
 
   <details class="sec"><summary>Regole settimanali</summary><div class="body">
