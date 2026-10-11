@@ -7,7 +7,7 @@
    ================================================================ */
 
 const LS_KEY = 'crumb:v1';
-const APP_VERSION = 29; // da allineare con ?v= in index.html e CACHE in sw.js
+const APP_VERSION = 30; // da allineare con ?v= in index.html e CACHE in sw.js
 const PASTI = [
   { id: 'colazione', nome: 'Colazione' },
   { id: 'pranzo', nome: 'Pranzo' },
@@ -370,9 +370,12 @@ function voto(t, st = S.settings) {
   else if (t.p < st.protMin * 0.9) pen.push([`Proteine ${g(t.p)} g, sotto il 90% del minimo (${g(st.protMin * 0.9)} di ${g(st.protMin)})`, 2]);
   else if (t.p < st.protMin) pen.push([`Proteine ${g(t.p)} g, sotto il minimo di ${g(st.protMin)}`, 1]);
   // Calorie: il pavimento dipende dalle proteine (il rischio è perdere massa magra, non il deficit).
-  if (t.p >= st.protMagra) {
-    if (t.kcal < st.kcalCritica) pen.push([`Calorie ${g(t.kcal)}, sotto ${g(st.kcalCritica)} anche con proteine alte`, 2]);
-    else if (t.kcal < st.kcalPavimento) pen.push([`Calorie ${g(t.kcal)}, sotto ${g(st.kcalPavimento)} (proteine ${g(t.p)} g)`, 1]);
+  // Se le proteine hanno già la loro penalità, quel rischio è già contato: le calorie si valutano
+  // con le soglie "proteine alte", per non penalizzare due volte lo stesso fatto.
+  const proteinePenalizzate = pen.length > 0;
+  if (t.p >= st.protMagra || proteinePenalizzate) {
+    if (t.kcal < st.kcalCritica) pen.push([`Calorie ${g(t.kcal)}, sotto ${g(st.kcalCritica)}`, 2]);
+    else if (t.kcal < st.kcalPavimento) pen.push([`Calorie ${g(t.kcal)}, sotto ${g(st.kcalPavimento)}`, 1]);
   } else {
     if (t.kcal < st.kcalSoglia) pen.push([`Calorie ${g(t.kcal)}, sotto ${g(st.kcalSoglia)} con proteine sotto ${g(st.protMagra)} g`, 2]);
     else if (t.kcal < st.kcalMin) pen.push([`Calorie ${g(t.kcal)}, sotto il minimo di ${g(st.kcalMin)}`, 1]);
@@ -2644,7 +2647,7 @@ function viewImpostazioni() {
   <details class="sec"><summary>Regole del voto</summary><div class="body">
     <p class="small muted">Si parte da 10, con le stesse soglie delle barre: una barra non verde toglie sempre almeno un punto.<br>
       Proteine: −1 sotto il minimo, −2 sotto il 90%, −3 sotto il 70%.<br>
-      Calorie, con proteine ≥ ${fmt(st.protMagra)} g (massa magra protetta): −1 sotto ${fmt(st.kcalPavimento)}, −2 sotto ${fmt(st.kcalCritica)}. Con proteine più basse: −1 sotto il minimo del range, −2 sotto ${fmt(st.kcalSoglia)}. Sempre −1 sopra il massimo.<br>
+      Calorie, con proteine ≥ ${fmt(st.protMagra)} g (massa magra protetta): −1 sotto ${fmt(st.kcalPavimento)}, −2 sotto ${fmt(st.kcalCritica)}. Con proteine più basse: −1 sotto il minimo del range, −2 sotto ${fmt(st.kcalSoglia)}, ma solo se le proteine non hanno già una loro penalità (altrimenti valgono le soglie delle proteine alte: lo stesso rischio non si conta due volte). Sempre −1 sopra il massimo.<br>
       Carbo netti: −1 fuori dal range. Fibra: −1 fuori dal range.<br>
       Sodio: −1 sopra la soglia alert, −2 sopra la soglia dura.<br>
       Tetto ${fmt(st.votoTetto)}: proteine sotto la soglia dura, calorie sotto ${fmt(st.kcalPavimento)} con proteine basse, sodio sopra la soglia dura. Tetto ${fmt(st.votoTettoCritico)}: calorie sotto ${fmt(st.kcalCritica)}, sempre. Minimo 1.</p>
