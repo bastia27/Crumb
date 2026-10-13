@@ -7,7 +7,7 @@
    ================================================================ */
 
 const LS_KEY = 'crumb:v1';
-const APP_VERSION = 31; // da allineare con ?v= in index.html e CACHE in sw.js
+const APP_VERSION = 32; // da allineare con ?v= in index.html e CACHE in sw.js
 const PASTI = [
   { id: 'colazione', nome: 'Colazione' },
   { id: 'pranzo', nome: 'Pranzo' },
@@ -797,6 +797,38 @@ function setRowPick(row, entry) {
   row.base = row.ings ? structuredClone(row.ings) : null;
 }
 
+// Legumi e cereali: "secco/crudo" o "cotto/lessato/in scatola" scritti nella riga.
+const RX_SECCO = /\b(a crudo|secc[oa]|secch[ie]|crud[oaie])\b/g;
+const RX_COTTO = /\b(cott[oaie]|cotti|less[oaie]|lessi|lessat[oaie]|lessati|bollit[oaie]|bolliti|in scatola|sgocciolat[oaie]|sgocciolati)\b/g;
+// Se la riga è un legume o cereale con due voci, sceglie quella giusta: cotta salvo "secco/crudo" esplicito.
+// Restituisce null per tutto il resto (es. "prosciutto crudo", "pomodori secchi" restano come sono).
+function risolviCottura(query) {
+  if (typeof COTTURA_DI === 'undefined') return null;
+  const q = norm(query);
+  const secco = RX_SECCO.test(q); RX_SECCO.lastIndex = 0;
+  const cotto = RX_COTTO.test(q); RX_COTTO.lastIndex = 0;
+  const rest = q.replace(RX_SECCO, ' ').replace(RX_COTTO, ' ').replace(/\s+/g, ' ').trim();
+  if (!rest) return null;
+  const cands = findCandidates(rest);
+  const best = cands[0];
+  if (!best || best.kind !== 'food' || !COTTURA_DI[best.item.id]) return null;
+  const second = cands.find((c) => c.item.id !== best.item.id && !(COTTURA_DI[c.item.id] && COTTURA_DI[c.item.id].cotto === COTTURA_DI[best.item.id].cotto));
+  const sicuro = best.exact ? !second || !second.exact : best.score >= 0.85 && (!second || best.score - second.score >= 0.08);
+  if (!sicuro) return null;
+  const pair = COTTURA_DI[best.item.id];
+  // Stato esplicito nella riga; altrimenti quello del nome (es. "lenticchie secche"); altrimenti il default.
+  const stato = secco ? 'secco' : cotto ? 'cotto' : pair.def;
+  const item = foodById(stato === 'secco' ? pair.secco : pair.cotto);
+  return item ? { kind: 'food', item, score: 1 } : null;
+}
+
+// "(cotte)"/"(secche)" accanto a legumi e cereali, se il nome registrato non lo dice già.
+function statoCotturaLabel(v) {
+  const c = typeof COTTURA_DI !== 'undefined' && COTTURA_DI[v.fid];
+  if (!c || /\((cott|secc|crud)/i.test(v.nome)) return '';
+  return ` <span class="muted">(${c.stato === 'cotto' ? 'cotto' : 'secco'})</span>`;
+}
+
 function parseInput(text) {
   const rows = [];
   for (const seg of segments(text)) {
@@ -804,6 +836,15 @@ function parseInput(text) {
     let cands = findCandidates(query);
     let best = cands[0];
     const row = { src: seg, query, qty, cands: cands.slice(0, 5), pick: null, g: null, nota: '', stato: 'ok' };
+    // Il nome esatto di un piatto vince (es. "riso bollito" = riso in bianco condito).
+    const cot = best?.exact && best.kind === 'recipe' ? null : risolviCottura(query);
+    if (cot) {
+      const pair = COTTURA_DI[cot.item.id];
+      row.cands = [cot, { kind: 'food', item: foodById(pair.stato === 'cotto' ? pair.secco : pair.cotto), score: 0.99 }].filter((c) => c.item);
+      setRowPick(row, cot);
+      rows.push(row);
+      continue;
+    }
     // Parola generica ("pane", "pizza", "cornetto"): propone il tipo più comune e mostra gli altri.
     const fam = typeof FAMIGLIE !== 'undefined' && FAMIGLIE[rawTokens(query).join(' ')];
     if (fam) {
@@ -1036,7 +1077,8 @@ function parseFoods(text) {
   const ids = [], miss = [];
   for (const row of parseInput(text)) {
     const c = row.pick?.kind === 'food' ? row.pick : row.cands.find((x) => x.kind === 'food' && x.score >= 0.6);
-    if (c) ids.push(c.item.id);
+    // In dispensa legumi e cereali sono quelli da cuocere: la voce secca, la stessa delle ricette.
+    if (c) ids.push(typeof COTTURA_DI !== 'undefined' && COTTURA_DI[c.item.id] ? COTTURA_DI[c.item.id].secco : c.item.id);
     else miss.push(row.src);
   }
   return { ids: [...new Set(ids)], miss };
@@ -1542,7 +1584,7 @@ function viewOggi() {
         const n = voceNutr(v);
         const vr = kcalRange([v]);
         h += `<button class="item${v.gid ? ' in-grp' : ''}" data-act="edit-voce" data-pasto="${p.id}" data-id="${v.id}">
-          <span class="nm"><b>${esc(v.nome)}</b><small class="num">${v.from && !v.gid ? `${esc(v.from)} · ` : ''}${v.inc ? '~' : ''}${fmt(v.g)} g · P ${fmt(n.p)} · C ${fmt(n.cn, n.cn < 10 && n.cn % 1 ? 1 : 0)} · F ${fmt(n.f)}</small></span>
+          <span class="nm"><b>${esc(v.nome)}${statoCotturaLabel(v)}</b><small class="num">${v.from && !v.gid ? `${esc(v.from)} · ` : ''}${v.inc ? '~' : ''}${fmt(v.g)} g · P ${fmt(n.p)} · C ${fmt(n.cn, n.cn < 10 && n.cn % 1 ? 1 : 0)} · F ${fmt(n.f)}</small></span>
           <span class="kc num">${vr.unc ? fmtRange(vr) : fmt(n.kcal)}</span></button>`;
       }
       h += `<div class="meal-foot"><button class="linkbtn" data-act="add-to" data-pasto="${p.id}">+ Aggiungi</button><span class="spacer"></span><button class="linkbtn" data-act="save-preset" data-pasto="${p.id}">Salva come preset</button></div>`;

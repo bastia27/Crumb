@@ -555,6 +555,64 @@ ALIMENTI_BASE.find((a) => a.id === 'sottilette').stima = true;
   em.alias.push('maasdam', 'leerdammer');
 }
 
+// Legumi e cereali: voce SECCA (peso da crudo, quella usata dalle ricette) e voce COTTA, con valori propri.
+// Il parser sceglie la cotta, a meno che nella riga ci sia "secco/secca/crudo/a crudo".
+ALIMENTI_BASE.push(
+  _A('lenticchie-rosse-cotte', 'Lenticchie rosse decorticate (cotte)', ['lenticchie rosse cotte', 'lenticchie decorticate cotte'], 116, 8.8, 20, 4, 2, 150, ['legume']),
+  _A('piselli-secchi', 'Piselli spezzati (secchi)', ['piselli secchi', 'piselli spezzati', 'piselli secchi spezzati'], 341, 24.6, 60.4, 22, 15, 50, ['legume']),
+  _A('piselli-secchi-cotti', 'Piselli spezzati (cotti)', ['piselli spezzati cotti', 'piselli secchi cotti', 'crema di piselli secchi'], 118, 8.3, 21.1, 8.3, 2, 150, ['legume']),
+  _A('fave-secche', 'Fave (secche)', ['fave secche', 'fave decorticate', 'fave secche decorticate'], 341, 26.1, 58.3, 25, 13, 50, ['legume']),
+  _A('fave-cotte', 'Fave secche (cotte)', ['fave cotte', 'fave lessate', 'fave decorticate cotte', 'macco di fave', 'pure di fave', 'fave e cicoria'], 110, 7.6, 19.6, 5.4, 5, 150, ['legume']),
+  _A('cicerchie-secche', 'Cicerchie (secche)', ['cicerchie', 'cicerchia', 'cicerchie secche'], 335, 25.6, 60, 7, 10, 50, ['legume']),
+  _A('cicerchie-cotte', 'Cicerchie (cotte)', ['cicerchie cotte', 'cicerchie lessate', 'zuppa di cicerchie'], 115, 8.5, 20, 2.5, 3, 150, ['legume']),
+  _A('soia-secca', 'Soia gialla (secca)', ['soia secca', 'soia gialla', 'fagioli di soia secchi', 'semi di soia'], 446, 36.5, 30.2, 9.3, 2, 50, ['legume']),
+  _A('soia-cotta', 'Soia gialla (cotta)', ['soia cotta', 'soia lessata', 'soia in scatola', 'soia gialla cotta'], 172, 18.2, 8.4, 6, 1, 150, ['legume']),
+  _A('pasta-cotta', 'Pasta (cotta)', ['pasta cotta', 'spaghetti cotti', 'penne cotte'], 158, 5.8, 31, 1.8, 1, 180, ['cereale']),
+  _A('pasta-integrale-cotta', 'Pasta integrale (cotta)', ['pasta integrale cotta', 'spaghetti integrali cotti'], 150, 5.8, 29, 3, 3, 180, ['cereale']),
+  _A('pasta-legumi-cotta', 'Pasta di legumi (cotta)', ['pasta di legumi cotta', 'pasta di lenticchie cotta', 'pasta di ceci cotta'], 148, 10.9, 24, 3.9, 4, 180, ['legume', 'cereale']),
+  _A('riso-cotto', 'Riso (cotto)', ['riso cotto', 'riso lessato'], 130, 2.7, 28.6, 0.4, 1, 180, ['cereale']),
+  _A('riso-integrale-cotto', 'Riso integrale (cotto)', ['riso integrale cotto', 'riso venere cotto'], 123, 2.7, 25.6, 1.6, 4, 180, ['cereale']),
+  _A('orzo-cotto', 'Orzo perlato (cotto)', ['orzo cotto', 'orzo perlato cotto'], 123, 2.3, 28.2, 3.8, 3, 180, ['cereale']),
+  _A('farro-cotto', 'Farro (cotto)', ['farro cotto', 'farro lessato'], 140, 6, 28, 3, 7, 180, ['cereale']),
+  _A('quinoa-cotta', 'Quinoa (cotta)', ['quinoa cotta'], 120, 4.4, 21.3, 2.8, 7, 180, ['cereale']),
+  _A('couscous-cotto', 'Cous cous (cotto)', ['cous cous cotto', 'couscous cotto'], 112, 3.8, 23.2, 1.4, 5, 180, ['cereale']),
+  _A('bulgur-cotto', 'Bulgur (cotto)', ['bulgur cotto'], 83, 3.1, 18.6, 4.5, 5, 180, ['cereale']),
+  _A('grano-saraceno-cotto', 'Grano saraceno (cotto)', ['grano saraceno cotto'], 92, 3.4, 19.9, 2.7, 4, 180, ['cereale']),
+  _A('polenta-cotta', 'Polenta (cotta)', ['polenta cotta', 'polenta morbida', 'polenta alla griglia', 'polenta grigliata'], 80, 1.9, 17.6, 0.9, 1, 250, ['cereale']),
+  _A('avena-cotta', "Porridge d'avena all'acqua (cotto)", ['avena cotta', 'porridge all acqua', 'fiocchi d avena cotti'], 71, 2.5, 12, 1.7, 4, 250, ['cereale']),
+);
+// Nomi delle voci secche con lo stato tra parentesi, come le cotte: nella giornata si vede quale è stata usata.
+{
+  const NOMI_SECCHI = {
+    'lenticchie-secche': 'Lenticchie (secche)', 'lenticchie-rosse': 'Lenticchie rosse decorticate (secche)',
+    'ceci-secchi': 'Ceci (secchi)', 'fagioli-secchi': 'Fagioli (secchi)',
+    'pasta-integrale': 'Pasta integrale (secca)', 'pasta-legumi': 'Pasta di legumi (secca)',
+    'riso-integrale': 'Riso integrale (crudo)', orzo: 'Orzo perlato (crudo)', farro: 'Farro (crudo)',
+    quinoa: 'Quinoa (cruda)', couscous: 'Cous cous (secco)', bulgur: 'Bulgur (secco)',
+    'grano-saraceno': 'Grano saraceno (crudo)', polenta: 'Farina di mais per polenta (secca)', avena: "Fiocchi d'avena (secchi)",
+  };
+  for (const [id, nome] of Object.entries(NOMI_SECCHI)) ALIMENTI_BASE.find((a) => a.id === id).nome = nome;
+}
+// Coppie [cotto, secco, default]. Default "cotto": un piatto si descrive per com'è nel piatto.
+// Eccezione: i fiocchi d'avena si pesano quasi sempre secchi (yogurt, overnight oats).
+const COTTURA = [
+  ['lenticchie', 'lenticchie-secche', 'cotto'], ['lenticchie-rosse-cotte', 'lenticchie-rosse', 'cotto'],
+  ['ceci', 'ceci-secchi', 'cotto'], ['fagioli', 'fagioli-secchi', 'cotto'],
+  ['piselli-secchi-cotti', 'piselli-secchi', 'cotto'], ['fave-cotte', 'fave-secche', 'cotto'],
+  ['cicerchie-cotte', 'cicerchie-secche', 'cotto'], ['soia-cotta', 'soia-secca', 'cotto'],
+  ['pasta-cotta', 'pasta', 'cotto'], ['pasta-integrale-cotta', 'pasta-integrale', 'cotto'], ['pasta-legumi-cotta', 'pasta-legumi', 'cotto'],
+  ['riso-cotto', 'riso', 'cotto'], ['riso-integrale-cotto', 'riso-integrale', 'cotto'],
+  ['orzo-cotto', 'orzo', 'cotto'], ['farro-cotto', 'farro', 'cotto'], ['quinoa-cotta', 'quinoa', 'cotto'],
+  ['couscous-cotto', 'couscous', 'cotto'], ['bulgur-cotto', 'bulgur', 'cotto'], ['grano-saraceno-cotto', 'grano-saraceno', 'cotto'],
+  ['polenta-cotta', 'polenta', 'cotto'], ['avena-cotta', 'avena', 'secco'],
+];
+const COTTURA_DI = {};
+for (const [cotto, secco, def] of COTTURA) {
+  const c = { cotto, secco, def };
+  COTTURA_DI[cotto] = { ...c, stato: 'cotto' };
+  COTTURA_DI[secco] = { ...c, stato: 'secco' };
+}
+
 // Parole generiche: si propone il primo, gli altri restano a un tocco nella schermata di controllo.
 const FAMIGLIE = {
   pane: ['pane', 'pane-integrale', 'pane-tipo1', 'pane-semola', 'pane-cereali', 'ciabatta', 'pancarre', 'pane-segale', 'pane-farro', 'pane-toscano', 'pane-proteico', 'pane-senza-glutine'],
