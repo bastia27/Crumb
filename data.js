@@ -509,6 +509,52 @@ ALIMENTI_BASE.push(
   _A('colomba', 'Colomba pasquale', ['colomba', 'colomba pasquale'], 380, 7.5, 57, 1.8, 200, 80, ['cereale', 'processato'], { fetta: 80 }),
 );
 
+// Formaggi (valori medi per 100 g; carboidrati TOTALI, poi fibra).
+ALIMENTI_BASE.push(
+  // Italiani a pasta dura e semidura
+  _A('grana-padano', 'Grana Padano', ['grana padano', 'grana', 'formaggio grattugiato', 'grattugiato', 'grana grattugiato'], 384, 33, 0, 0, 600, 20, ['latticino'], { cucchiaio: 5 }),
+  _A('pecorino-toscano', 'Pecorino toscano / sardo', ['pecorino toscano', 'pecorino sardo', 'pecorino fresco', 'pecorino semistagionato', 'fiore sardo'], 380, 25, 0.5, 0, 650, 40, ['latticino'], { fetta: 20 }),
+  _A('montasio', 'Montasio', ['montasio'], 370, 28, 0.5, 0, 620, 40, ['latticino'], { fetta: 20 }),
+  _A('piave', 'Piave', ['piave', 'formaggio piave'], 390, 31, 0.5, 0, 650, 40, ['latticino'], { fetta: 20 }),
+  _A('caciotta', 'Caciotta', ['caciotta', 'caciotta fresca', 'caciotta toscana', 'caciotta di mucca', 'caciotta mista'], 360, 24, 1, 0, 600, 50, ['latticino'], { fetta: 25 }),
+  _A('toma', 'Toma piemontese', ['toma', 'toma piemontese', 'bra', 'raschera'], 350, 25, 0.5, 0, 600, 50, ['latticino'], { fetta: 25 }),
+  _A('fontal', 'Fontal', ['fontal', 'fontina dolce'], 350, 24, 0.5, 0, 600, 50, ['latticino'], { fetta: 20 }),
+  _A('quartirolo', 'Quartirolo', ['quartirolo', 'quartirolo lombardo'], 300, 21, 0.5, 0, 500, 50, ['latticino']),
+  _A('galbanino', 'Galbanino', ['galbanino', 'formaggio galbanino'], 310, 21, 0.5, 0, 600, 30, ['latticino'], { fetta: 20 }),
+  // Freschi
+  _A('primo-sale', 'Primo sale', ['primo sale', 'primosale'], 260, 18, 1, 0, 500, 80, ['latticino']),
+  _A('tomino', 'Tomino', ['tomino', 'tomini', 'tomino da piastra', 'tomino alla piastra'], 300, 18, 1, 0, 500, 80, ['latticino'], { pezzo: 80 }),
+  _A('squacquerone', 'Squacquerone', ['squacquerone', 'squaquerone'], 220, 13, 3, 0, 400, 50, ['latticino']),
+  _A('caprino', 'Caprino fresco', ['caprino', 'formaggio di capra', 'formaggio caprino', 'chevre', 'caprino fresco'], 260, 15, 1, 0, 400, 50, ['latticino'], { pezzo: 70 }),
+  _A('ricotta-pecora', 'Ricotta di pecora', ['ricotta di pecora', 'ricotta romana', 'ricotta di bufala'], 160, 9.5, 3.5, 0, 90, 100, ['latticino']),
+  _A('ricotta-salata', 'Ricotta salata', ['ricotta salata', 'ricotta stagionata', 'ricotta infornata'], 280, 20, 3, 0, 1000, 30, ['latticino']),
+  _A('ricotta-light', 'Ricotta light', ['ricotta light', 'ricotta magra'], 100, 10, 4, 0, 90, 100, ['latticino']),
+  _A('quark', 'Quark magro', ['quark', 'quark magro', 'formaggio quark'], 67, 12, 4, 0, 40, 150, ['latticino']),
+  _A('spalmabile-light', 'Formaggio spalmabile light', ['spalmabile light', 'philadelphia light', 'formaggio spalmabile light'], 150, 8, 4, 0, 350, 30, ['latticino'], { cucchiaio: 15 }),
+  // Fusi e a fette
+  _A('sottilette', 'Sottilette / formaggio a fette', ['sottilette', 'sottiletta', 'formaggio a fette', 'formaggio fuso a fette'], 270, 14, 5.5, 0, 1150, 25, ['latticino', 'processato'], { fetta: 20, pezzo: 20 }),
+  _A('formaggini', 'Formaggini', ['formaggino', 'formaggini', 'formaggio fuso', 'formaggini spalmabili'], 250, 11, 5, 0, 800, 22, ['latticino', 'processato'], { pezzo: 22 }),
+  // Esteri
+  _A('brie', 'Brie', ['brie'], 334, 20.8, 0.5, 0, 630, 40, ['latticino']),
+  _A('camembert', 'Camembert', ['camembert'], 300, 19.8, 0.5, 0, 840, 40, ['latticino']),
+  _A('cheddar', 'Cheddar', ['cheddar', 'cheddar a fette'], 403, 25, 1.3, 0, 650, 30, ['latticino'], { fetta: 20 }),
+  _A('gouda', 'Gouda', ['gouda'], 356, 25, 2.2, 0, 820, 40, ['latticino'], { fetta: 20 }),
+  _A('edamer', 'Edamer', ['edamer', 'edam'], 357, 25, 1.4, 0, 960, 40, ['latticino'], { fetta: 20 }),
+  _A('roquefort', 'Roquefort / formaggio blu', ['roquefort', 'formaggio blu', 'stilton', 'blue cheese'], 370, 21.5, 2, 0, 1800, 30, ['latticino']),
+  _A('halloumi', 'Halloumi', ['halloumi', 'formaggio da grigliare', 'formaggio alla piastra'], 320, 21, 2.2, 0, 1100, 80, ['latticino']),
+  _A('manchego', 'Manchego', ['manchego'], 390, 26, 0.5, 0, 650, 40, ['latticino']),
+  _A('raclette', 'Raclette', ['raclette', 'formaggio raclette'], 357, 25, 0.5, 0, 700, 60, ['latticino']),
+);
+ALIMENTI_BASE.find((a) => a.id === 'galbanino').stima = true;
+ALIMENTI_BASE.find((a) => a.id === 'sottilette').stima = true;
+// "grana" ora ha la sua voce: il parmigiano tiene solo i suoi nomi.
+{
+  const pr = ALIMENTI_BASE.find((a) => a.id === 'parmigiano');
+  pr.alias = pr.alias.filter((x) => !['grana', 'grana padano'].includes(x));
+  const em = ALIMENTI_BASE.find((a) => a.id === 'emmental');
+  em.alias.push('maasdam', 'leerdammer');
+}
+
 // Parole generiche: si propone il primo, gli altri restano a un tocco nella schermata di controllo.
 const FAMIGLIE = {
   pane: ['pane', 'pane-integrale', 'pane-tipo1', 'pane-semola', 'pane-cereali', 'ciabatta', 'pancarre', 'pane-segale', 'pane-farro', 'pane-toscano', 'pane-proteico', 'pane-senza-glutine'],
@@ -516,6 +562,8 @@ const FAMIGLIE = {
   cornetto: ['cornetto', 'cornetto-crema', 'cornetto-cioccolato', 'cornetto-marmellata', 'cornetto-integrale'],
 };
 FAMIGLIE.pizze = FAMIGLIE.pizza;
+FAMIGLIE.formaggio = ['grana-padano', 'parmigiano', 'mozzarella', 'galbanino', 'emmental', 'scamorza', 'provolone', 'pecorino', 'asiago', 'fontina', 'caciotta', 'primo-sale', 'sottilette', 'spalmabile'];
+FAMIGLIE.formaggi = FAMIGLIE.formaggio;
 FAMIGLIE.brioche = FAMIGLIE.cornetto;
 FAMIGLIE.croissant = FAMIGLIE.cornetto;
 FAMIGLIE.panino = ['pane', 'ciabatta', 'pane-hamburger', 'panino-latte', 'pane-integrale', 'pane-tipo1'];
