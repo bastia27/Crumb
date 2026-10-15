@@ -133,6 +133,17 @@ main { padding: 4px 16px calc(var(--tabbar) + var(--safe-b) + 96px); max-width: 
 .alert.warn { background: var(--warn-soft); color: var(--warn); }
 .alert.info { background: var(--accent-soft); color: var(--ink); }
 .alert b { display: block; }
+.alert.mancante { align-items: center; }
+.alert .mbtn { display: flex; flex-direction: column; align-items: center; gap: 2px; flex-shrink: 0; }
+.alert .mbtn .linkbtn { color: var(--muted); }
+.label-box { border: 2px solid var(--ink); border-radius: 10px; padding: 4px 12px 8px; background: var(--card); }
+.label-box .lhead { font-weight: 800; font-size: 14px; padding: 6px 0; border-bottom: 4px solid var(--ink); margin-bottom: 2px; }
+.lrow { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--line); }
+.lrow:last-child { border-bottom: 0; }
+.lrow > span { flex: 1; font-size: 15px; font-weight: 600; }
+.lrow.sub > span { font-weight: 400; padding-left: 14px; color: var(--muted); }
+.lrow .inp { width: 96px; min-height: 40px; text-align: right; }
+.lrow small { width: 30px; color: var(--muted); }
 
 /* ——— buttons ——— */
 .btn {
@@ -276,6 +287,7 @@ details.sec > .body { padding: 0 16px 16px; }
 .li .nm small { display: block; color: var(--muted); font-size: 13px; }
 .badge { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 6px; background: var(--track); color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
 .badge.bad { background: var(--bad-soft); color: var(--bad); }
+.badge.warn { background: var(--warn-soft); color: var(--warn); }
 
 /* ——— stats ——— */
 .stat-big { font-size: 44px; font-weight: 700; letter-spacing: -.03em; line-height: 1; }
@@ -380,8 +392,8 @@ details.sec > .body { padding: 0 16px 16px; }
 <div class="backdrop" id="backdrop"><div class="sheet" id="sheet" role="dialog" aria-modal="true"></div></div>
 <div class="toast" id="toast" role="status"><span id="toastMsg"></span><button id="toastBtn"></button></div>
 
-<script src="data.js?v=33"></script>
-<script src="ricette.js?v=33"></script>
-<script src="app.js?v=33"></script>
+<script src="data.js?v=34"></script>
+<script src="ricette.js?v=34"></script>
+<script src="app.js?v=34"></script>
 </body>
 </html>
