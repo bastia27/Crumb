@@ -760,6 +760,7 @@ const CUCINE = ['italiana', ...Object.keys(_CUCINA)];
 for (const r of RICETTE_BASE) r.cucina = _CUCINA_ID[r.id] || 'italiana';
 
 Object.assign(_ALIAS_RICETTE, {
+  'r-polpette-manzo': ['polpette al sugo', 'polpette al pomodoro', 'polpette di carne al sugo'],
   'r-souvlaki': ['souvlaki', 'souvlaki di pollo'],
   'r-gyros-piatto': ['gyros al piatto'],
   'r-moussaka': ['moussaka', 'musaka'],

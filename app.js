@@ -7,7 +7,7 @@
    ================================================================ */
 
 const LS_KEY = 'crumb:v1';
-const APP_VERSION = 34; // da allineare con ?v= in index.html e CACHE in sw.js
+const APP_VERSION = 35; // da allineare con ?v= in index.html e CACHE in sw.js
 const PASTI = [
   { id: 'colazione', nome: 'Colazione' },
   { id: 'pranzo', nome: 'Pranzo' },
@@ -108,6 +108,7 @@ function emptyState() {
     preset: [],          // { id, nome, voci: [voce] }
     recenti: [],         // [{ fid, g }] più recente per primo
     dispensa: null,      // { base: [fid], fresco: [{ fid, t: 'YYYY-MM-DD' }] }
+    sinonimi: {},        // testo scritto (normalizzato) → 'f:<id alimento>' | 'r:<id ricetta/piatto>', confermati dall'utente
   };
 }
 
@@ -363,7 +364,42 @@ function cleanupDay(k) {
 const mancantiDi = (k) => S.giorni[k]?.mancanti || [];
 function aggiungiMancante(k, pasto, row) {
   const d = getDay(k, true);
-  (d.mancanti ||= []).push({ id: uid('m'), src: row.src, query: row.query, qty: row.qty || [], pasto });
+  const m = { id: uid('m'), src: row.src, query: row.query, qty: row.qty || [], pasto };
+  // Riga con un nome solo simile: si tiene la proposta, che entra nei totali solo dopo il "sì".
+  if (row.pick) {
+    m.proposta = (row.pick.kind === 'recipe' ? 'r:' : 'f:') + row.pick.item.id;
+    if (row.pick.item.composto) m.composto = row.pick.item; // piatto "alimento + cottura", non ha un id stabile
+    m.g = row.g;
+  }
+  (d.mancanti ||= []).push(m);
+}
+function refToEntry(ref, m) {
+  if (m?.composto) return { kind: 'recipe', item: m.composto, score: 1 };
+  const [kind, id] = [ref.slice(0, 1), ref.slice(2)];
+  const item = kind === 'r' ? (recipeById(id) || (typeof PIATTI_BASE !== 'undefined' && PIATTI_BASE.find((p) => p.id === id))) : foodById(id);
+  return item ? { kind: kind === 'r' ? 'recipe' : 'food', item, score: 1 } : null;
+}
+// Trasforma una riga in sospeso in voci vere, con l'alimento confermato o scelto.
+function completaMancante(k, m, entry) {
+  const row = { src: m.src, query: m.query, qty: m.qty || [], cands: [entry], pick: null, g: null, nota: '', stato: 'ok' };
+  setRowPick(row, entry);
+  if (m.g && !row.ings && entry.item.id === m.proposta?.slice(2)) row.g = m.g;
+  const d = getDay(k, true);
+  const voci = rowToVoci(row);
+  for (const v of voci) (d.pasti[m.pasto] ||= []).push(v);
+  d.mancanti = (d.mancanti || []).filter((x) => x.id !== m.id);
+  if (!d.mancanti.length) delete d.mancanti;
+  return voci;
+}
+// Conferma un aggancio: lo ricorda come sinonimo e completa tutte le righe in sospeso con lo stesso testo.
+function confermaAggancio(query, entry) {
+  ricordaSinonimo(query, entry);
+  const key = chiaveTesto(query);
+  const voci = [];
+  for (const [k, d] of Object.entries(S.giorni)) {
+    for (const m of [...(d.mancanti || [])]) if (chiaveTesto(m.query) === key) voci.push(...completaMancante(k, m, entry));
+  }
+  return voci;
 }
 // Dopo aver creato un alimento, completa le righe in sospeso che ora lo riconoscono (in tutti i giorni).
 // "forza" = la riga da cui si è partiti, convertita anche se il nome scelto è diverso.
@@ -603,27 +639,43 @@ function tokSim([ra, sa], [rb, sb]) {
   const s = 1 - dist(ra, rb) / Math.max(ra.length, rb.length);
   return s >= 0.75 ? s : 0;
 }
-function phraseScore(q, a) {
+function phraseScore(q, a, sim = tokSim) {
   if (!q.length || !a.length) return 0;
-  const best = (xs, ys) => xs.reduce((acc, x) => acc + Math.max(...ys.map((y) => tokSim(x, y))), 0) / xs.length;
+  const best = (xs, ys) => xs.reduce((acc, x) => acc + Math.max(...ys.map((y) => sim(x, y))), 0) / xs.length;
   const covA = best(a, q);
   const covQ = best(q, a);
   return (covA + covQ) / 2;
 }
+// Somiglianza senza refusi: parola uguale o stessa radice (plurali, femminili). "cannelloni" ≠ "cannellini".
+const tokSimStretta = ([ra, sa], [rb, sb]) => (ra === rb ? 1 : sa === sb && !/^\d/.test(ra) ? 0.95 : 0);
 
+const chiaveTesto = (s) => rawTokens(s).join(' ');
 let _matchIndex = null;
 function matchIndex() {
   if (_matchIndex) return _matchIndex;
+  // Sinonimi confermati dall'utente: valgono come alias esatti.
+  const syn = {};
+  for (const [k, ref] of Object.entries(S.sinonimi || {})) (syn[ref] ||= []).push(k);
   const idx = [];
   for (const a of allFoods()) {
     const names = new Set([a.nome, ...(a.alias || [])]);
-    idx.push({ kind: 'food', item: a, keys: [...names].map(tokens).filter((t) => t.length), raw: new Set([...names].map((n) => rawTokens(n).join(' '))) });
+    const extra = syn['f:' + a.id] || [];
+    idx.push({ kind: 'food', item: a, keys: [...names].map(tokens).filter((t) => t.length), raw: new Set([...[...names].map(chiaveTesto), ...extra]) });
   }
   for (const r of [...allRecipes().filter((x) => !x.soloSuggerimento), ...(typeof PIATTI_BASE !== 'undefined' ? PIATTI_BASE : [])]) {
     const names = [r.nome, ...(r.alias || [])];
-    idx.push({ kind: 'recipe', item: r, keys: names.map(tokens).filter((t) => t.length), raw: new Set(names.map((n) => rawTokens(n).join(' '))) });
+    const extra = syn['r:' + r.id] || [];
+    idx.push({ kind: 'recipe', item: r, keys: names.map(tokens).filter((t) => t.length), raw: new Set([...names.map(chiaveTesto), ...extra]) });
   }
   return (_matchIndex = idx);
+}
+// Salva "questo testo = quell'alimento" per non chiederlo più.
+function ricordaSinonimo(query, entry) {
+  const k = chiaveTesto(query);
+  if (!k || !entry?.item) return;
+  S.sinonimi ||= {};
+  S.sinonimi[k] = (entry.kind === 'recipe' ? 'r:' : 'f:') + entry.item.id;
+  invalidateFoods();
 }
 
 function findCandidates(query) {
@@ -634,12 +686,16 @@ function findCandidates(query) {
   for (const e of matchIndex()) {
     // Corrispondenza letterale con nome o alias: vince su qualsiasi somiglianza.
     if (e.raw.has(qRaw)) {
-      out.push({ ...e, score: 1.01, exact: true });
+      out.push({ ...e, score: 1.01, exact: true, certo: true });
       continue;
     }
-    let s = 0;
-    for (const k of e.keys) s = Math.max(s, phraseScore(q, k));
-    if (s > 0.3) out.push({ ...e, score: Math.min(s, 1) });
+    let s = 0, stretta = 0;
+    for (const k of e.keys) {
+      const x = phraseScore(q, k);
+      if (x > s) { s = x; stretta = phraseScore(q, k, tokSimStretta); }
+    }
+    // "certo": stesse parole del nome (a meno di plurali e ordine), senza refusi né parole in più o in meno.
+    if (s > 0.3) out.push({ ...e, score: Math.min(s, 1), certo: stretta >= 0.95 });
   }
   out.sort((x, y) => y.score - x.score || (x.kind === 'food' ? -1 : 1) || x.item.nome.localeCompare(y.item.nome));
   return out;
@@ -843,7 +899,7 @@ function risolviCottura(query) {
   if (!rest) return null;
   const cands = findCandidates(rest);
   const best = cands[0];
-  if (!best || best.kind !== 'food' || !COTTURA_DI[best.item.id]) return null;
+  if (!best || best.kind !== 'food' || !best.certo || !COTTURA_DI[best.item.id]) return null;
   const second = cands.find((c) => c.item.id !== best.item.id && !(COTTURA_DI[c.item.id] && COTTURA_DI[c.item.id].cotto === COTTURA_DI[best.item.id].cotto));
   const sicuro = best.exact ? !second || !second.exact : best.score >= 0.85 && (!second || best.score - second.score >= 0.08);
   if (!sicuro) return null;
@@ -891,12 +947,12 @@ function parseInput(text) {
       }
     }
     // Nessun nome preciso? Prova "alimento + metodo di cottura".
-    if (!best || best.score < 0.9) {
+    if (!best || best.score < 0.9 || !best.certo) {
       const dm = detectMethod(query);
       if (dm) {
         const fc = findCandidates(dm.rest).filter((c) => c.kind === 'food');
         const f = fc[0], f2 = fc[1];
-        if (f && (f.exact ? !f2?.exact : f.score >= 0.8 && (!f2 || f.score - f2.score >= 0.08))) {
+        if (f && f.certo && (f.exact ? !f2?.exact : f.score >= 0.8 && (!f2 || f.score - f2.score >= 0.08))) {
           setRowPick(row, { kind: 'recipe', item: composeDish(f.item, dm.m, qty, dm.parola), score: 1 });
           rows.push(row);
           continue;
@@ -911,8 +967,11 @@ function parseInput(text) {
       const confident = best.exact
         ? !second || !second.exact
         : (best.score >= 0.8 && (!second || best.score - second.score >= 0.08)) || (best.score >= 0.7 && (!second || second.score < best.score - 0.3));
-      if (confident) setRowPick(row, best);
-      else {
+      if (confident) {
+        setRowPick(row, best);
+        // Nome solo simile (refuso, parole in più): proposto ma non contato finché non si conferma.
+        if (!best.certo) row.stato = 'conferma';
+      } else {
         row.stato = 'amb';
         row.cands = cands.filter((c) => c.score >= best.score - 0.25).slice(0, 4);
       }
@@ -958,7 +1017,19 @@ function rowToVoci(row) {
   if (!row.g) return [];
   const v = makeVoce(e.item, row.g);
   if (row.inc) v.inc = row.inc;
+  if (row.query) v.scritto = row.query; // per mostrare "quello che ho scritto (alimento usato)"
   return [v];
+}
+
+// Nome della voce nella giornata: se ho scritto qualcosa di diverso dal nome del database,
+// "cannelloni 80 g (Cannelloni di pasta all'uovo, secchi)".
+function nomeVoceHtml(v) {
+  const base = (s) => tokens(String(s).replace(/\s*\(.*?\)/g, ''));
+  const uguali = (a, b) => a.length === b.length && a.every((x) => b.some((y) => tokSimStretta(x, y) > 0)) && b.every((y) => a.some((x) => tokSimStretta(x, y) > 0));
+  if (v.scritto && !uguali(base(v.scritto), base(v.nome))) {
+    return `${esc(v.scritto)} <span class="muted dbnome">(${esc(v.nome.replace(/\s*\((.*?)\)/g, ', $1'))})</span>`;
+  }
+  return `${esc(v.nome)}${statoCotturaLabel(v)}`;
 }
 
 /* ================================================================
@@ -1566,8 +1637,15 @@ function viewOggi() {
   let h = '';
   for (const m of mancantiDi(k)) {
     const g = grammiDaQty(m.qty);
+    const prop = m.proposta && refToEntry(m.proposta, m);
+    if (prop) {
+      const kc = prop.kind === 'food' && m.g ? ` · ${fmt(m.g)} g = ${fmt(prop.item.kcal * m.g / 100)} kcal non contate` : '';
+      h += `<div class="alert warn mancante"><div style="flex:1;min-width:0"><b>Hai scritto «${esc(m.query)}» — ho usato ${esc(prop.item.nome)}</b>${esc(pastoNome(m.pasto))}${kc}
+        <div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap"><button class="btn sm primary" data-act="mancante-ok" data-id="${m.id}">Sì, è giusto</button><button class="btn sm" data-act="mancante-no" data-id="${m.id}">No, scegli un altro</button><button class="linkbtn small" data-act="mancante-del" data-id="${m.id}">Elimina</button></div></div></div>`;
+      continue;
+    }
     h += `<div class="alert warn mancante"><div style="flex:1;min-width:0"><b>Non riconosciuto: ${esc(m.query)}${g ? ` (${fmt(g)} g)` : ''} — i totali non lo includono</b>${esc(pastoNome(m.pasto))} · «${esc(m.src)}»</div>
-      <div class="mbtn"><button class="btn sm primary" data-act="mancante-add" data-id="${m.id}">Aggiungi</button><button class="linkbtn small" data-act="mancante-del" data-id="${m.id}">Elimina</button></div></div>`;
+      <div class="mbtn"><button class="btn sm primary" data-act="mancante-add" data-id="${m.id}">Aggiungi</button><button class="linkbtn small" data-act="mancante-cerca" data-id="${m.id}">Cerca</button><button class="linkbtn small" data-act="mancante-del" data-id="${m.id}">Elimina</button></div></div>`;
   }
   if (t.na > st.sodioMax) {
     h += `<div class="alert bad"><div><b>Sodio a ${fmt(t.na)} mg (soglia ${fmt(st.sodioMax)})</b>Domani la bilancia segnerà acqua, non grasso.</div></div>`;
@@ -1621,7 +1699,7 @@ function viewOggi() {
         const n = voceNutr(v);
         const vr = kcalRange([v]);
         h += `<button class="item${v.gid ? ' in-grp' : ''}" data-act="edit-voce" data-pasto="${p.id}" data-id="${v.id}">
-          <span class="nm"><b>${esc(v.nome)}${statoCotturaLabel(v)}</b><small class="num">${v.from && !v.gid ? `${esc(v.from)} · ` : ''}${v.inc ? '~' : ''}${fmt(v.g)} g · P ${fmt(n.p)} · C ${fmt(n.cn, n.cn < 10 && n.cn % 1 ? 1 : 0)} · F ${fmt(n.f)}</small></span>
+          <span class="nm"><b>${nomeVoceHtml(v)}</b><small class="num">${v.from && !v.gid ? `${esc(v.from)} · ` : ''}${v.inc ? '~' : ''}${fmt(v.g)} g · P ${fmt(n.p)} · C ${fmt(n.cn, n.cn < 10 && n.cn % 1 ? 1 : 0)} · F ${fmt(n.f)}</small></span>
           <span class="kc num">${vr.unc ? fmtRange(vr) : fmt(n.kcal)}</span></button>`;
       }
       h += `<div class="meal-foot"><button class="linkbtn" data-act="add-to" data-pasto="${p.id}">+ Aggiungi</button><span class="spacer"></span><button class="linkbtn" data-act="save-preset" data-pasto="${p.id}">Salva come preset</button></div>`;
@@ -1785,7 +1863,7 @@ function commitRows(rows) {
   let n = 0;
   let sospesi = 0;
   for (const row of rows) {
-    if (!row.pick) { aggiungiMancante(ui.day, ui.pasto, row); sospesi++; continue; }
+    if (!row.pick || row.stato === 'conferma') { aggiungiMancante(ui.day, ui.pasto, row); sospesi++; continue; }
     const voci = rowToVoci(row);
     for (const v of voci) d.pasti[ui.pasto].push(v);
     if (voci.length === 1 && !row.ings) pushRecent(voci[0].fid, voci[0].g, voci[0].inc);
@@ -1799,7 +1877,8 @@ function commitRows(rows) {
 }
 
 // Una riga non riconosciuta non blocca: si salva in sospeso e si completa dalla giornata.
-const rowReady = (r) => (r.stato === 'miss' && !r.pick) || (r.pick && (r.ings ? r.ings.some((x) => x.g > 0) : r.g > 0));
+// Anche una riga da confermare non blocca: resta in sospeso nella giornata, fuori dai totali.
+const rowReady = (r) => (r.stato === 'miss' && !r.pick) || r.stato === 'conferma' || (r.pick && (r.ings ? r.ings.some((x) => x.g > 0) : r.g > 0));
 
 function openConfirmSheet(rows) {
   const dishHtml = (r, i) => {
@@ -1818,6 +1897,11 @@ function openConfirmSheet(rows) {
   const draw = () => rows.map((r, i) => {
     const cls = r.stato === 'miss' && !r.pick ? 'miss' : r.stato !== 'ok' ? 'amb' : '';
     let body = '';
+    if (r.stato === 'conferma' && r.pick) {
+      body += `<div class="conf">Hai scritto «${esc(r.query)}» — ho usato <b>${esc(r.pick.item.nome)}</b>
+        <div class="row" style="margin-top:8px;gap:8px"><button class="btn sm primary" data-conf="${i}">Sì, è giusto</button><button class="btn sm" data-search="${i}">No, scegli un altro</button></div>
+        <div class="small muted" style="margin-top:4px">Finché non confermi non entra nei totali.</div></div>`;
+    }
     if (r.pick && r.ings) {
       body += dishHtml(r, i);
     } else if (r.pick) {
@@ -1847,8 +1931,10 @@ function openConfirmSheet(rows) {
     const setReady = () => {
       const ready = rows.length && rows.every(rowReady);
       const sospese = rows.filter((r) => r.stato === 'miss' && !r.pick).length;
+      const daConf = rows.filter((r) => r.stato === 'conferma').length;
+      const extra = [daConf ? `${daConf} da confermare` : '', sospese ? `${sospese} da completare` : ''].filter(Boolean).join(', ');
       $('#rowsOk', el).disabled = !ready;
-      $('#rowsOk', el).textContent = !ready ? 'Scegli le voci evidenziate' : sospese ? `Aggiungi · ${sospese} da completare` : 'Aggiungi';
+      $('#rowsOk', el).textContent = !ready ? 'Scegli le voci evidenziate' : extra ? `Aggiungi · ${extra}` : 'Aggiungi';
     };
     const refresh = () => {
       box.innerHTML = draw();
@@ -1907,12 +1993,28 @@ function openConfirmSheet(rows) {
       const s = e.target.closest('[data-search]');
       if (s) {
         const r = rows[s.dataset.search];
+        const eraConferma = r.stato === 'conferma';
         return pickFood(r.query, (entry) => {
           r.cands = [entry, ...r.cands.filter((x) => x.item.id !== entry.item.id)].slice(0, 4);
-          r.stato = 'amb';
+          setRowPick(r, entry);
+          // "No, scegli un altro": la scelta vale come conferma e si ricorda.
+          if (eraConferma) { ricordaSinonimo(r.query, entry); save(); r.stato = 'ok'; } else r.stato = 'amb';
+          openConfirmSheet(rows);
+        }, () => openConfirmSheet(rows), false, eraConferma ? () => openEtichetta({ nome: cap(r.query), grammi: grammiDaQty(r.qty) }, (food) => {
+          const entry = { kind: 'food', item: food, score: 1 };
+          r.cands = [entry];
+          r.stato = 'ok';
           setRowPick(r, entry);
           openConfirmSheet(rows);
-        }, () => openConfirmSheet(rows));
+        }, () => openConfirmSheet(rows)) : null);
+      }
+      const cf = e.target.closest('[data-conf]');
+      if (cf) {
+        const r = rows[cf.dataset.conf];
+        ricordaSinonimo(r.query, r.pick);
+        save();
+        r.stato = 'ok';
+        return refresh();
       }
       const cr = e.target.closest('[data-create]');
       if (cr) {
@@ -1931,11 +2033,13 @@ function openConfirmSheet(rows) {
 }
 
 // Selettore alimento con ricerca (usato dal parser e dalle ricette).
-function pickFood(initial, onPick, onCancel, foodsOnly = false) {
+function pickFood(initial, onPick, onCancel, foodsOnly = false, onCreate = null) {
   openSheet(`<h2>Cerca alimento</h2>
     <input class="inp" id="fq" placeholder="Cerca…" value="${esc(initial || '')}" autocapitalize="off" autocomplete="off" spellcheck="false">
     <div class="list" id="fres" style="margin-top:10px"></div>
+    ${onCreate ? '<button class="btn ghost block" id="fcreate" style="margin-top:10px">Non c\'è: crealo dall\'etichetta</button>' : ''}
     <div class="sheet-actions"><button class="btn" id="fcancel">Indietro</button></div>`, (el) => {
+    $('#fcreate', el)?.addEventListener('click', onCreate);
     const inp = $('#fq', el);
     const res = $('#fres', el);
     let items = [];
@@ -2107,10 +2211,11 @@ function parsePasti(text) {
     }
     const rows = parseInput(testo);
     for (const r of rows) {
-      // In importazione non si chiede riga per riga: si prende il candidato migliore e lo si segnala.
+      // Nome solo simile o ambiguo: si propone il candidato migliore, ma resta da confermare nella giornata
+      // e non entra nei totali finché non si conferma.
       if (!r.pick && r.cands[0] && r.cands[0].score >= 0.6) {
         setRowPick(r, r.cands[0]);
-        r.incerto = true;
+        r.stato = 'conferma';
       }
       if (r.stato === 'amb-qty') r.incerto = true;
     }
@@ -2136,8 +2241,9 @@ function openIncollaPasti(testo = '') {
       const giorni = [...new Set(res.righe.map((r) => r.k))].sort();
       const giaPresenti = res.righe.filter(occupato);
       const voci = res.righe.flatMap((r) => r.rows);
-      const ok = voci.filter((r) => r.pick);
+      const ok = voci.filter((r) => r.pick && r.stato !== 'conferma');
       const incerti = ok.filter((r) => r.incerto);
+      const daConfermare = voci.filter((r) => r.pick && r.stato === 'conferma');
       const miss = voci.filter((r) => !r.pick);
       if (!res.righe.length) {
         $('#mPrev', el).innerHTML = res.scartate.length ? '<span class="txt-bad">Nessuna riga nel formato data;pasto;alimenti.</span>' : '';
@@ -2146,13 +2252,14 @@ function openIncollaPasti(testo = '') {
       }
       const perGiorno = giorni.map((k) => {
         const righe = res.righe.filter((r) => r.k === k);
-        const t = sumN(righe.filter((r) => sostituisci || !occupato(r)).flatMap((r) => r.rows.flatMap(rowToVoci)).map(voceNutr));
+        const t = sumN(righe.filter((r) => sostituisci || !occupato(r)).flatMap((r) => r.rows.filter((x) => x.stato !== 'conferma').flatMap(rowToVoci)).map(voceNutr));
         const saltati = righe.filter((r) => occupato(r) && !sostituisci).map((r) => r.pasto);
         return `<li class="num">${labelDay(k, false)}: ${fmt(t.kcal)} kcal · P ${fmt(t.p)} · C ${fmt(t.cn)}${saltati.length ? ` <span class="muted">· ${saltati.join(', ')} già registrat${saltati.length === 1 ? 'o' : 'i'}, saltat${saltati.length === 1 ? 'o' : 'i'}</span>` : ''}</li>`;
       }).join('');
       $('#mPrev', el).innerHTML = `<b class="num">${giorni.length} ${giorni.length === 1 ? 'giorno' : 'giorni'}, ${res.righe.length} pasti, ${ok.length} alimenti riconosciuti</b>
         <ul class="plist">${perGiorno}</ul>
-        ${incerti.length ? `<div class="pbox warn"><b>Da controllare (${incerti.length})</b>${incerti.slice(0, 12).map((r) => `<div>«${esc(r.src)}» → ${esc(r.pick.item.nome)} ${fmt(r.g)} g</div>`).join('')}${incerti.length > 12 ? `<div>… e altri ${incerti.length - 12}</div>` : ''}</div>` : ''}
+        ${incerti.length ? `<div class="pbox warn"><b>Quantità da controllare (${incerti.length})</b>${incerti.slice(0, 12).map((r) => `<div>«${esc(r.src)}» → ${esc(r.pick.item.nome)} ${fmt(r.g)} g</div>`).join('')}${incerti.length > 12 ? `<div>… e altri ${incerti.length - 12}</div>` : ''}</div>` : ''}
+        ${daConfermare.length ? `<div class="pbox warn"><b>Da confermare (${daConfermare.length}): fuori dai totali finché non dici sì nella giornata</b>${daConfermare.slice(0, 12).map((r) => `<div>«${esc(r.query)}» → ${esc(r.pick.item.nome)}?</div>`).join('')}</div>` : ''}
         ${miss.length ? `<div class="pbox bad"><b>Non riconosciuti (${miss.length}): restano in sospeso nel giorno, fuori dai totali</b>${miss.slice(0, 12).map((r) => `<div>«${esc(r.src)}»</div>`).join('')}<div class="muted">Dopo l'importazione li completi dalla giornata con "Aggiungi" (valori da etichetta).</div></div>` : ''}
         ${res.scartate.length ? `<div class="muted">Righe ignorate: ${res.scartate.length} (${esc(res.scartate.slice(0, 2).join(' · '))})</div>` : ''}
         ${giaPresenti.length ? `<label class="tagchk" style="margin-top:8px"><input type="checkbox" id="mRep" ${sostituisci ? 'checked' : ''}> Sostituisci ${giaPresenti.length === 1 ? 'il pasto già registrato' : `i ${giaPresenti.length} pasti già registrati`}</label>` : ''}`;
@@ -2170,7 +2277,7 @@ function openIncollaPasti(testo = '') {
       for (const r of righe) {
         const d = getDay(r.k, true);
         for (const row of r.rows) {
-          if (!row.pick) { aggiungiMancante(r.k, r.pasto, row); continue; }
+          if (!row.pick || row.stato === 'conferma') { aggiungiMancante(r.k, r.pasto, row); continue; }
           for (const v of rowToVoci(row)) { d.pasti[r.pasto].push(v); n++; }
         }
       }
@@ -2759,6 +2866,14 @@ function viewImpostazioni() {
     <div class="list" id="foodList" style="margin-top:10px">${foodListHtml('')}</div>
   </div></details>
 
+  <details class="sec"><summary>Nomi imparati <span class="muted small" style="margin-left:8px">${Object.keys(S.sinonimi || {}).length}</span></summary><div class="body">
+    <p class="small muted">Agganci che hai confermato: questi testi non chiedono più conferma. Toglili se un aggancio era sbagliato.</p>
+    <div class="list">${Object.entries(S.sinonimi || {}).sort(([a], [b]) => a.localeCompare(b)).map(([k, ref]) => {
+      const e = refToEntry(ref);
+      return `<div class="li"><span class="nm">«${esc(k)}»<small>${e ? esc(e.item.nome) : 'alimento eliminato'}</small></span><button class="iconbtn" data-act="sin-del" data-k="${esc(k)}" aria-label="Dimentica ${esc(k)}">✕</button></div>`;
+    }).join('') || '<p class="small muted">Ancora nessuno.</p>'}</div>
+  </div></details>
+
   <details class="sec"><summary>Ricette <span class="muted small" style="margin-left:8px">${allRecipes().length}</span></summary><div class="body">
     <button class="btn primary block" data-act="recipe-new" style="margin-bottom:10px">+ Nuova ricetta</button>
     <div class="list">${allRecipes().map((r) => {
@@ -3144,6 +3259,50 @@ function bindView(main) {
           render();
           const kcal = fatti.reduce((s, x) => s + voceNutr(x.v).kcal, 0);
           toast(`${food.nome}: ${fatti.length} ${fatti.length === 1 ? 'riga completata' : 'righe completate'}, +${fmt(kcal)} kcal`);
+        });
+      }
+      case 'sin-del': {
+        delete S.sinonimi[t.dataset.k];
+        invalidateFoods();
+        save();
+        rerenderImpostazioni();
+        return toast(`«${t.dataset.k}» dimenticato`);
+      }
+      case 'mancante-ok': {
+        const m = mancantiDi(ui.day).find((x) => x.id === t.dataset.id);
+        const entry = m && refToEntry(m.proposta, m);
+        if (!entry) return;
+        const undo = structuredClone(S.giorni), synPrima = structuredClone(S.sinonimi || {});
+        const voci = confermaAggancio(m.query, entry);
+        Object.keys(S.giorni).forEach(cleanupDay);
+        save();
+        render();
+        const kcal = voci.reduce((s, v) => s + voceNutr(v).kcal, 0);
+        return toast(`«${m.query}» = ${entry.item.nome}: ricordato · +${fmt(kcal)} kcal`, 'Annulla', () => { S.giorni = undo; S.sinonimi = synPrima; invalidateFoods(); save(); render(); });
+      }
+      case 'mancante-no': {
+        const m = mancantiDi(ui.day).find((x) => x.id === t.dataset.id);
+        if (!m) return;
+        const scelto = (entry) => {
+          const voci = confermaAggancio(m.query, entry);
+          Object.keys(S.giorni).forEach(cleanupDay);
+          save();
+          closeSheet();
+          render();
+          toast(`«${m.query}» = ${entry.item.nome}: ricordato · +${fmt(voci.reduce((s, v) => s + voceNutr(v).kcal, 0))} kcal`);
+        };
+        return pickFood(m.query, scelto, null, false, () => openEtichetta({ nome: cap(m.query), grammi: grammiDaQty(m.qty) }, (food) => scelto({ kind: 'food', item: food, score: 1 })));
+      }
+      case 'mancante-cerca': {
+        const m = mancantiDi(ui.day).find((x) => x.id === t.dataset.id);
+        if (!m) return;
+        return pickFood(m.query, (entry) => {
+          const voci = confermaAggancio(m.query, entry);
+          Object.keys(S.giorni).forEach(cleanupDay);
+          save();
+          closeSheet();
+          render();
+          toast(`«${m.query}» = ${entry.item.nome}: ricordato · +${fmt(voci.reduce((s, v) => s + voceNutr(v).kcal, 0))} kcal`);
         });
       }
       case 'mancante-del': {

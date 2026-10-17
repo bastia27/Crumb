@@ -509,6 +509,13 @@ ALIMENTI_BASE.push(
   _A('colomba', 'Colomba pasquale', ['colomba', 'colomba pasquale'], 380, 7.5, 57, 1.8, 200, 80, ['cereale', 'processato'], { fetta: 80 }),
 );
 
+// Pasta ripiena e al forno.
+ALIMENTI_BASE.push(
+  _A('cannelloni', "Cannelloni di pasta all'uovo (secchi)", ['cannelloni', 'cannelloni secchi', 'cannelloni all uovo', 'tubi per cannelloni', 'manicotti'], 366, 13, 70.5, 2.5, 20, 80, ['cereale']),
+  _A('cannelloni-carne', 'Cannelloni al forno (ripieni di carne)', ['cannelloni al forno', 'cannelloni ripieni', 'cannelloni di carne', 'cannelloni al ragu'], 165, 8.5, 15, 1, 380, 300, ['cereale', 'carne-rossa', 'latticino']),
+  _A('cannelloni-ricotta', 'Cannelloni ricotta e spinaci', ['cannelloni ricotta e spinaci', 'cannelloni di magro', 'cannelloni alla ricotta'], 150, 7, 15.2, 1.2, 350, 300, ['cereale', 'latticino']),
+);
+
 // Formaggi (valori medi per 100 g; carboidrati TOTALI, poi fibra).
 ALIMENTI_BASE.push(
   // Italiani a pasta dura e semidura
