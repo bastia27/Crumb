@@ -7,7 +7,7 @@
    ================================================================ */
 
 const LS_KEY = 'crumb:v1';
-const APP_VERSION = 35; // da allineare con ?v= in index.html e CACHE in sw.js
+const APP_VERSION = 36; // da allineare con ?v= in index.html e CACHE in sw.js
 const PASTI = [
   { id: 'colazione', nome: 'Colazione' },
   { id: 'pranzo', nome: 'Pranzo' },
@@ -32,14 +32,10 @@ const DEFAULT_SETTINGS = {
   carboMax: 30,
   fibraMin: 25,
   fibraMax: 30,
-  // Soglie del voto (modificabili, i default sono quelli della specifica).
-  kcalSoglia: 1800,     // con proteine basse: sotto → −2
-  protMagra: 140,       // proteine da qui in su: massa magra protetta, pavimento kcal più basso
-  kcalPavimento: 1600,  // con proteine alte: sotto → −1; con proteine basse: sotto → tetto 7
-  kcalCritica: 1400,    // sempre: sotto → −2 e tetto 6
+  // Soglie del voto. Tutto il resto è relativo ai range qui sopra: niente numeri fissi.
+  kcalCritica: 1400,    // pavimento di sicurezza, sotto il range: −2 e tetto 6
   votoTettoCritico: 6,
-  protDura: 120,        // sotto: tetto al voto
-  votoTetto: 7,
+  votoTetto: 7,         // tetto con sodio sopra la soglia dura
   fibraBassa: 15,
   fibraAlta: 35,
   sodioMax: 3000,       // sopra: −1 al voto e alert
@@ -133,6 +129,8 @@ function migrate(data) {
   // v25: target kcal automatico solo se l'utente non aveva toccato i default 2000–2200.
   const old = data?.settings;
   if (old && old.kcalAuto === undefined) s.settings.kcalAuto = old.kcalMin == null || (old.kcalMin === 2000 && old.kcalMax === 2200);
+  // v36: soglie fisse dei vecchi target eliminate (il voto usa solo i range).
+  for (const k of ['kcalSoglia', 'protMagra', 'kcalPavimento', 'protDura']) delete s.settings[k];
   // v25: alimenti salvati col vecchio formato (cn netti) → carboidrati_totali + fibra.
   s.alimenti.forEach(conNetti);
   Object.values(s.override || {}).forEach((o) => { if (o.cn != null && o.carboidrati_totali == null) conNetti(o); });
@@ -434,17 +432,9 @@ function voto(t, st = S.settings) {
   if (t.p < st.protMin * 0.7) pen.push([`Proteine ${g(t.p)} g, sotto il 70% del minimo (${g(st.protMin * 0.7)} di ${g(st.protMin)})`, 3]);
   else if (t.p < st.protMin * 0.9) pen.push([`Proteine ${g(t.p)} g, sotto il 90% del minimo (${g(st.protMin * 0.9)} di ${g(st.protMin)})`, 2]);
   else if (t.p < st.protMin) pen.push([`Proteine ${g(t.p)} g, sotto il minimo di ${g(st.protMin)}`, 1]);
-  // Calorie: il pavimento dipende dalle proteine (il rischio è perdere massa magra, non il deficit).
-  // Se le proteine hanno già la loro penalità, quel rischio è già contato: le calorie si valutano
-  // con le soglie "proteine alte", per non penalizzare due volte lo stesso fatto.
-  const proteinePenalizzate = pen.length > 0;
-  if (t.p >= st.protMagra || proteinePenalizzate) {
-    if (t.kcal < st.kcalCritica) pen.push([`Calorie ${g(t.kcal)}, sotto ${g(st.kcalCritica)}`, 2]);
-    else if (t.kcal < st.kcalPavimento) pen.push([`Calorie ${g(t.kcal)}, sotto ${g(st.kcalPavimento)}`, 1]);
-  } else {
-    if (t.kcal < st.kcalSoglia) pen.push([`Calorie ${g(t.kcal)}, sotto ${g(st.kcalSoglia)} con proteine sotto ${g(st.protMagra)} g`, 2]);
-    else if (t.kcal < st.kcalMin) pen.push([`Calorie ${g(t.kcal)}, sotto il minimo di ${g(st.kcalMin)}`, 1]);
-  }
+  // Calorie sotto il range: −1; sotto il pavimento di sicurezza: −2 (e tetto).
+  if (t.kcal < st.kcalCritica) pen.push([`Calorie ${g(t.kcal)}, sotto ${g(st.kcalCritica)}`, 2]);
+  else if (t.kcal < st.kcalMin) pen.push([`Calorie ${g(t.kcal)}, sotto il minimo di ${g(st.kcalMin)}`, 1]);
   // Calorie in eccesso: scalare come le proteine (oltre il 10% e il 25% del massimo).
   if (t.kcal > st.kcalMax * 1.25) pen.push([`Calorie ${g(t.kcal)}, oltre il 25% sopra il massimo (${g(st.kcalMax * 1.25)} su ${g(st.kcalMax)})`, 3]);
   else if (t.kcal > st.kcalMax * 1.1) pen.push([`Calorie ${g(t.kcal)}, oltre il 10% sopra il massimo (${g(st.kcalMax * 1.1)} su ${g(st.kcalMax)})`, 2]);
@@ -459,11 +449,12 @@ function voto(t, st = S.settings) {
   if (t.na > st.sodioDuro) pen.push([`Sodio ${g(t.na)} mg, sopra ${g(st.sodioDuro)}`, 2]);
   else if (t.na > st.sodioMax) pen.push([`Sodio ${g(t.na)} mg, sopra ${g(st.sodioMax)}`, 1]);
 
+  // Regola prioritaria: giornata interamente dentro i range (tutte le barre verdi "in target",
+  // sodio sotto la soglia) = 10, senza penalità né tetti.
+  if (giornataInTarget(t, st)) return { v: 10, pen: [], tetto: null, tettoV: null };
   let v = 10 - pen.reduce((s, [, n]) => s + n, 0);
   // Regole dure: il voto non supera il tetto.
   const tetti = []; // [valore massimo, motivo]
-  if (t.p < st.protDura) tetti.push([st.votoTetto, `proteine sotto ${g(st.protDura)} g`]);
-  if (t.kcal < st.kcalPavimento && t.p < st.protMagra) tetti.push([st.votoTetto, `calorie sotto ${g(st.kcalPavimento)} con proteine sotto ${g(st.protMagra)} g`]);
   if (t.kcal < st.kcalCritica) tetti.push([st.votoTettoCritico, `calorie sotto ${g(st.kcalCritica)}`]);
   if (t.na > st.sodioDuro) tetti.push([st.votoTetto, `sodio sopra ${g(st.sodioDuro)} mg`]);
   let tetto = null;
@@ -478,13 +469,17 @@ function voto(t, st = S.settings) {
   v = clamp(v, 1, 10);
   return { v, pen, tetto, tettoV };
 }
-// Giornata a calorie troppo basse (penalità −2): sotto 1800 con proteine basse, sotto 1400 sempre.
-function kcalTroppoBasse(t, st = S.settings) {
-  return t.p >= st.protMagra ? t.kcal < st.kcalCritica : t.kcal < st.kcalSoglia;
+// Tutte le barre di Oggi "in target" e sodio entro la soglia.
+function giornataInTarget(t, st = S.settings) {
+  return t.kcal >= st.kcalMin && t.kcal <= st.kcalMax
+    && t.p >= st.protMin && t.p <= st.protMax
+    && t.cn <= st.carboMax && (!(st.carboMin > 0) || t.cn >= st.carboMin)
+    && t.f >= st.fibraMin && t.f <= st.fibraMax
+    && t.na <= st.sodioMax;
 }
-// Sotto il range ma con proteine alte e sopra il pavimento: nessuna penalità.
-function kcalBassaProtetta(t, st = S.settings) {
-  return t.kcal < st.kcalMin && t.p >= st.protMagra && t.kcal >= st.kcalPavimento;
+// Giornata a rischio massa magra: calorie e proteine entrambe sotto il range, o sotto il pavimento di sicurezza.
+function kcalTroppoBasse(t, st = S.settings) {
+  return t.kcal < st.kcalCritica || (t.kcal < st.kcalMin && t.p < st.protMin);
 }
 const votoClass = (v) => (v >= 8 ? 'v-good' : v >= 6 ? 'v-mid' : 'v-bad');
 
@@ -533,7 +528,7 @@ function syncFabbisogno() {
 }
 function misuraFabbisogno(endKey = todayKey()) {
   const st = S.settings;
-  const end = dayHasData(endKey) && dayTotals(endKey).kcal >= st.kcalSoglia ? endKey : addDays(endKey, -1);
+  const end = dayHasData(endKey) && dayTotals(endKey).kcal >= st.kcalMin ? endKey : addDays(endKey, -1);
   const start = addDays(end, -(MISURA.giorni - 1));
   const giorni = [...Array(MISURA.giorni)].map((_, i) => addDays(start, i));
   const pasti = giorni.filter(dayHasData);
@@ -1095,7 +1090,7 @@ function scarto(avg, min, max) {
 // solo quando la giornata è piena, per non abbassare le medie la mattina.
 function weekStats(endKey, includeToday = true) {
   const st = S.settings;
-  const days = last7(endKey).filter((k) => dayHasData(k) && (includeToday || k !== todayKey() || dayTotals(k).kcal >= st.kcalSoglia));
+  const days = last7(endKey).filter((k) => dayHasData(k) && (includeToday || k !== todayKey() || dayTotals(k).kcal >= st.kcalMin));
   const tots = days.map(dayTotals);
   const n = days.length;
   const avg = (key) => (n ? tots.reduce((a, t) => a + t[key], 0) / n : null);
@@ -1361,7 +1356,7 @@ function dailyTip(k) {
   // 4. tre o più giorni sotto la soglia kcal
   if (ws.sotto >= 3) {
     return {
-      text: `${ws.sotto} giorni su ${ws.n} con calorie troppo basse (sotto ${fmt(st.kcalSoglia)} con proteine sotto ${fmt(st.protMagra)} g, o sotto ${fmt(st.kcalCritica)}): così si perde massa magra.`,
+      text: `${ws.sotto} giorni su ${ws.n} con calorie troppo basse (calorie sotto il minimo con proteine sotto il minimo, o sotto ${fmt(st.kcalCritica)}): così si perde massa magra.`,
       recipes: pick((x) => x.tags.includes('batch'), (a, b) => b.n.kcal - a.n.kcal),
     };
   }
@@ -1436,7 +1431,7 @@ function exportWeek(endKey) {
   if (ws.n) {
     L.push(`Medie (${ws.n} giorni${ws.days.includes(endKey) || !dayHasData(endKey) ? '' : ', oggi escluso perché incompleto'}): ${fmt(ws.avg.kcal)} kcal (${fmtScarto(ws.scarti.kcal, 'kcal')}) · P ${fmt(ws.avg.p)} g (${fmtScarto(ws.scarti.p, 'g')}) · C netti ${fmt(ws.avg.cn)} g (${fmtScarto(ws.scarti.cn, 'g')}) · fibra ${fmt(ws.avg.f)} g (${fmtScarto(ws.scarti.f, 'g')})`);
     L.push(`${ws.deficit >= 0 ? 'Deficit' : 'Surplus'} cumulativo: ${fmt(Math.abs(ws.deficit))} kcal su fabbisogno ${fmt(st.fabbisogno)} · grasso stimato ${ws.deficit >= 0 ? '−' : '+'}${fmt(Math.abs(ws.grasso), 2)} kg`);
-    L.push(`Giorni a calorie troppo basse (sotto ${fmt(st.kcalSoglia)} con proteine < ${fmt(st.protMagra)} g, o sotto ${fmt(st.kcalCritica)}): ${ws.sotto}`);
+    L.push(`Giorni a calorie troppo basse (calorie sotto il minimo con proteine sotto il minimo, o sotto ${fmt(st.kcalCritica)}): ${ws.sotto}`);
   }
   L.push(`Regole: ${ruleStatus(endKey).map((r) => `${ruleLabel(r.tag).toLowerCase()} ${ruleText(r)} ${r.ok ? '✓' : '✗'}`).join('; ')}`);
   if (ws.maDelta != null) L.push(`Media mobile peso: ${fmt(ws.ma, 1)} kg (${ws.maDelta <= 0 ? '−' : '+'}${fmt(Math.abs(ws.maDelta), 1)} kg sulla settimana precedente)`);
@@ -1612,9 +1607,7 @@ function votoDettaglioHtml(vv, t, st) {
   const tot = vv.pen.reduce((s, [, n]) => s + n, 0);
   if (!vv.pen.length && !vv.tetto) {
     const ok = [
-      kcalBassaProtetta(t, st)
-        ? `calorie ${fmt(t.kcal)} sotto il range ma ≥ ${fmt(st.kcalPavimento)} con proteine ≥ ${fmt(st.protMagra)} g: massa magra protetta`
-        : `calorie ${fmt(t.kcal)} in ${fmt(st.kcalMin)}–${fmt(st.kcalMax)}`,
+      `calorie ${fmt(t.kcal)} in ${fmt(st.kcalMin)}–${fmt(st.kcalMax)}`,
       `proteine ${fmt(t.p)} ≥ ${fmt(st.protMin)} g`,
       `carbo netti ${fmt(t.cn)} ≤ ${fmt(st.carboMax)} g`,
       `fibra ${fmt(t.f)} in ${fmt(st.fibraMin)}–${fmt(st.fibraMax)} g`,
@@ -1656,8 +1649,7 @@ function viewOggi() {
   }
   const kr = kcalRange(dayVoci(d));
   h += `<section class="card"><div class="bars">
-    ${barHtml('Calorie', t.kcal, st.kcalMin, st.kcalMax, 'kcal', 'range', kr.unc ? `stima ${fmtRange(kr)} kcal` : '',
-    kcalBassaProtetta(t, st) ? { cls: 'good', foot: `${fmt(st.kcalMin - t.kcal)} kcal sotto il target, ma con ${fmt(t.p)} g di proteine va bene così (pavimento ${fmt(st.kcalPavimento)})` } : null)}
+    ${barHtml('Calorie', t.kcal, st.kcalMin, st.kcalMax, 'kcal', 'range', kr.unc ? `stima ${fmtRange(kr)} kcal` : '')}
     ${barHtml('Proteine', t.p, st.protMin, st.protMax, 'g', 'min')}
     ${st.carboMin > 0 ? barHtml('Carbo netti', t.cn, st.carboMin, st.carboMax, 'g', 'rangecap') : barHtml('Carbo netti', t.cn, 0, st.carboMax, 'g', 'cap')}
     ${barHtml('Fibra', t.f, st.fibraMin, st.fibraMax, 'g', 'range')}
@@ -2727,7 +2719,7 @@ function viewSettimana() {
   }).join('')}</div></section>`;
 
   if (ws.sotto >= 3) {
-    h += `<div class="alert bad"><div><b>${ws.sotto} giorni su ${ws.n} con calorie troppo basse</b>Sotto ${fmt(st.kcalSoglia)} kcal con proteine sotto ${fmt(st.protMagra)} g, o sotto ${fmt(st.kcalCritica)}: così si perde massa magra, non solo grasso.</div></div>`;
+    h += `<div class="alert bad"><div><b>${ws.sotto} giorni su ${ws.n} con calorie troppo basse</b>Calorie sotto ${fmt(st.kcalMin)} con proteine sotto ${fmt(st.protMin)} g, o sotto ${fmt(st.kcalCritica)}: così si perde massa magra, non solo grasso.</div></div>`;
   }
 
   if (!ws.n) {
@@ -2738,13 +2730,13 @@ function viewSettimana() {
       ${mediaRow('Proteine', ws.avg.p, ws.scarti.p, 'g', `min ${st.protMin}`, ws.n)}
       ${mediaRow('Carbo netti', ws.avg.cn, ws.scarti.cn, 'g', st.carboMin > 0 ? `${st.carboMin}–${st.carboMax}` : `max ${st.carboMax}`, ws.n)}
       ${mediaRow('Fibra', ws.avg.f, ws.scarti.f, 'g', `${st.fibraMin}–${st.fibraMax}`, ws.n)}
-    </div>${oggiEscluso ? `<p class="small muted num" style="margin:12px 0 0">Oggi è escluso finché non supera ${fmt(st.kcalSoglia)} kcal: ora è a ${fmt(dayTotals(end).kcal)}.</p>` : ''}</section>`;
+    </div>${oggiEscluso ? `<p class="small muted num" style="margin:12px 0 0">Oggi è escluso finché non arriva al minimo di ${fmt(st.kcalMin)} kcal: ora è a ${fmt(dayTotals(end).kcal)}.</p>` : ''}</section>`;
 
     const def = ws.deficit >= 0;
     h += `<section class="card"><h2>Bilancio energetico</h2><div class="kv">
       <div><b class="num">${def ? '−' : '+'}${fmt(Math.abs(ws.deficit))}</b><span>kcal ${def ? 'di deficit' : 'di surplus'} in ${ws.n} giorni, su fabbisogno ${fmt(st.fabbisogno)}</span></div>
       <div><b class="num">${def ? '−' : '+'}${fmt(Math.abs(ws.grasso), 2)} kg</b><span>grasso stimato (deficit ÷ 7.700)</span></div>
-    </div><p class="small muted num" style="margin:10px 0 0">Giorni a calorie troppo basse: ${ws.sotto} (sotto ${fmt(st.kcalSoglia)} con proteine &lt; ${fmt(st.protMagra)} g, o sotto ${fmt(st.kcalCritica)})</p>
+    </div><p class="small muted num" style="margin:10px 0 0">Giorni a calorie troppo basse: ${ws.sotto} (calorie sotto ${fmt(st.kcalMin)} con proteine sotto ${fmt(st.protMin)} g, o sotto ${fmt(st.kcalCritica)})</p>
     <div style="margin-top:12px">${misuraHtml()}</div></section>`;
   }
 
@@ -2838,16 +2830,14 @@ function viewImpostazioni() {
   </div></details>
 
   <details class="sec"><summary>Regole del voto</summary><div class="body">
-    <p class="small muted">Si parte da 10, con le stesse soglie delle barre: una barra non verde toglie sempre almeno un punto.<br>
-      Proteine: −1 sotto il minimo, −2 sotto il 90%, −3 sotto il 70%.<br>
-      Calorie, con proteine ≥ ${fmt(st.protMagra)} g (massa magra protetta): −1 sotto ${fmt(st.kcalPavimento)}, −2 sotto ${fmt(st.kcalCritica)}. Con proteine più basse: −1 sotto il minimo del range, −2 sotto ${fmt(st.kcalSoglia)}, ma solo se le proteine non hanno già una loro penalità (altrimenti valgono le soglie delle proteine alte: lo stesso rischio non si conta due volte). Sopra il massimo: −1 fino al 10% in più (${fmt(st.kcalMax * 1.1)}), −2 fino al 25% (${fmt(st.kcalMax * 1.25)}), −3 oltre.<br>
+    <p class="small muted"><b>Prima regola:</b> se tutte le barre sono verdi "in target" e il sodio è sotto ${fmt(st.sodioMax)} mg, il voto è 10. Le soglie sono solo quelle dei tuoi range in Target giornalieri: cambiando i range cambiano anche queste.<br>
+      Proteine: −1 sotto il minimo (${fmt(st.protMin)}), −2 sotto il 90%, −3 sotto il 70%.<br>
+      Calorie: −1 sotto il minimo (${fmt(st.kcalMin)}), −2 sotto ${fmt(st.kcalCritica)} (pavimento di sicurezza). Sopra il massimo: −1 fino al 10% in più (${fmt(st.kcalMax * 1.1)}), −2 fino al 25% (${fmt(st.kcalMax * 1.25)}), −3 oltre.<br>
       Carbo netti: −1 fuori dal range. Fibra: −1 fuori dal range.<br>
-      Sodio: −1 sopra la soglia alert, −2 sopra la soglia dura.<br>
-      Tetto ${fmt(st.votoTetto)}: proteine sotto la soglia dura, calorie sotto ${fmt(st.kcalPavimento)} con proteine basse, sodio sopra la soglia dura. Tetto ${fmt(st.votoTettoCritico)}: calorie sotto ${fmt(st.kcalCritica)}, sempre. Minimo 1.</p>
-    <div class="grid2">${field('protMagra', 'Proteine che proteggono la massa magra', st.protMagra, 'g')}${field('kcalSoglia', 'Kcal bassa con proteine basse', st.kcalSoglia)}</div>
-    <div class="grid2">${field('kcalPavimento', 'Pavimento kcal', st.kcalPavimento)}${field('kcalCritica', 'Kcal critica (sempre)', st.kcalCritica)}</div>
-    <div class="grid2">${field('protDura', 'Soglia dura proteine', st.protDura, 'g')}${field('sodioDuro', 'Soglia dura sodio', st.sodioDuro, 'mg')}</div>
-    <div class="grid2">${field('votoTetto', 'Tetto voto', st.votoTetto)}${field('votoTettoCritico', 'Tetto voto critico', st.votoTettoCritico)}</div>
+      Sodio: −1 sopra ${fmt(st.sodioMax)} mg, −2 sopra la soglia dura.<br>
+      Tetto ${fmt(st.votoTetto)}: sodio sopra la soglia dura. Tetto ${fmt(st.votoTettoCritico)}: calorie sotto ${fmt(st.kcalCritica)}. Minimo 1.</p>
+    <div class="grid2">${field('kcalCritica', 'Pavimento di sicurezza kcal', st.kcalCritica)}${field('sodioDuro', 'Soglia dura sodio', st.sodioDuro, 'mg')}</div>
+    <div class="grid2">${field('votoTetto', 'Tetto con sodio alto', st.votoTetto)}${field('votoTettoCritico', 'Tetto sotto il pavimento', st.votoTettoCritico)}</div>
   </div></details>
 
   <details class="sec"><summary>Regole settimanali</summary><div class="body">
