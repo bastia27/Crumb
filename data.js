@@ -521,6 +521,85 @@ ALIMENTI_BASE.push(
   _A('cannelloni-ricotta', 'Cannelloni ricotta e spinaci', ['cannelloni ricotta e spinaci', 'cannelloni di magro', 'cannelloni alla ricotta'], 150, 7, 15.2, 1.2, 350, 300, ['cereale', 'latticino']),
 );
 
+// Dolci (valori medi per 100 g; carboidrati TOTALI, poi fibra). Tag "dolce" per le regole settimanali.
+ALIMENTI_BASE.push(
+  // Torte
+  _A('torta-cioccolato', 'Torta al cioccolato', ['torta al cioccolato', 'torta cioccolato', 'torta caprese', 'caprese al cioccolato', 'tenerina', 'torta tenerina'], 400, 5.5, 54.5, 2.5, 300, 80, ['cereale', 'processato'], { fetta: 80 }),
+  _A('crostata', 'Crostata alla marmellata', ['crostata', 'crostata alla marmellata', 'crostata di frutta', 'crostata alla frutta'], 380, 5, 61.5, 1.5, 150, 80, ['cereale', 'processato'], { fetta: 80 }),
+  _A('torta-mele', 'Torta di mele', ['torta di mele', 'torta alle mele', 'apple pie'], 260, 4, 39.5, 1.5, 180, 100, ['cereale', 'processato'], { fetta: 100 }),
+  _A('ciambellone', 'Ciambellone / torta margherita', ['ciambellone', 'ciambella', 'torta margherita', 'torta allo yogurt', 'torta paradiso', 'torta della colazione'], 380, 7, 56, 1, 250, 70, ['cereale', 'processato'], { fetta: 70 }),
+  _A('pan-spagna', 'Pan di Spagna', ['pan di spagna', 'pandispagna'], 290, 8, 55.5, 0.5, 100, 50, ['cereale', 'processato'], { fetta: 50 }),
+  _A('cheesecake', 'Cheesecake', ['cheesecake', 'cheese cake', 'torta al formaggio'], 321, 5.5, 26, 0.5, 300, 110, ['latticino', 'processato'], { fetta: 110 }),
+  _A('sacher', 'Torta Sacher', ['sacher', 'torta sacher', 'sachertorte'], 380, 5, 53, 3, 150, 80, ['cereale', 'processato'], { fetta: 80 }),
+  _A('torta-nonna', 'Torta della nonna', ['torta della nonna'], 350, 7, 46.5, 1.5, 120, 100, ['cereale', 'processato'], { fetta: 100 }),
+  _A('torta-ricotta', 'Torta di ricotta', ['torta di ricotta', 'torta alla ricotta', 'crostata di ricotta'], 280, 9, 30.5, 0.5, 120, 100, ['latticino', 'processato'], { fetta: 100 }),
+  _A('strudel', 'Strudel di mele', ['strudel', 'strudel di mele', 'strudel alle mele'], 270, 3.5, 42, 2, 150, 120, ['cereale', 'processato'], { fetta: 120 }),
+  _A('castagnaccio', 'Castagnaccio', ['castagnaccio'], 250, 5, 44, 4, 10, 100, ['processato'], { fetta: 100 }),
+  // Pasticceria
+  _A('cannolo', 'Cannolo siciliano', ['cannolo', 'cannoli', 'cannolo siciliano', 'cannoli siciliani'], 370, 7, 41, 1, 150, 100, ['cereale', 'latticino', 'processato'], { pezzo: 100 }),
+  _A('cassata', 'Cassata siciliana', ['cassata', 'cassata siciliana'], 360, 6, 51, 1, 120, 100, ['latticino', 'processato'], { fetta: 100 }),
+  _A('sfogliatella', 'Sfogliatella', ['sfogliatella', 'sfogliatelle', 'sfogliatella riccia', 'frolla napoletana'], 360, 7, 46.5, 1.5, 200, 100, ['cereale', 'processato'], { pezzo: 100 }),
+  _A('pastiera', 'Pastiera napoletana', ['pastiera', 'pastiera napoletana'], 330, 7, 46.5, 1.5, 150, 120, ['cereale', 'latticino', 'processato'], { fetta: 120 }),
+  _A('zeppola', 'Zeppola di San Giuseppe', ['zeppola', 'zeppole', 'zeppola di san giuseppe'], 330, 5.5, 37, 1, 150, 90, ['cereale', 'processato'], { pezzo: 90 }),
+  _A('bigne', 'Bignè alla crema', ['bigne', 'bigne alla crema', 'bigne al cioccolato', 'choux', 'eclair', 'eclairs'], 260, 6, 26.5, 0.5, 120, 40, ['cereale', 'processato'], { pezzo: 20 }),
+  _A('profiterole', 'Profiterole', ['profiterole', 'profiteroles'], 300, 5, 31, 1, 100, 150, ['cereale', 'latticino', 'processato']),
+  _A('millefoglie', 'Millefoglie alla crema', ['millefoglie', 'mille foglie'], 330, 5, 38.8, 0.8, 200, 100, ['cereale', 'processato'], { fetta: 100 }),
+  _A('pasticcini', 'Pasticcini misti', ['pasticcini', 'pasticcino', 'pasticcini mignon', 'pasta mignon', 'cannoncini', 'cannoncino', 'diplomatico'], 380, 6, 46, 1, 100, 60, ['cereale', 'processato'], { pezzo: 20 }),
+  _A('baklava', 'Baklava', ['baklava', 'baclava'], 430, 6.5, 52.5, 2.5, 250, 50, ['cereale', 'frutta-secca', 'processato'], { pezzo: 30 }),
+  _A('kunafa', 'Kunafa (kataifi, formaggio e sciroppo)', ['kunafa', 'knafeh', 'kunefe', 'kadaif dolce'], 330, 7, 43, 1, 200, 120, ['cereale', 'latticino', 'processato']),
+  // Al cucchiaio
+  _A('tiramisu', 'Tiramisù', ['tiramisu', 'tiramisu classico'], 283, 5, 29, 0.5, 60, 120, ['latticino', 'processato']),
+  _A('panna-cotta', 'Panna cotta', ['panna cotta', 'pannacotta'], 230, 3, 22, 0, 40, 120, ['latticino', 'processato'], { pezzo: 120 }),
+  _A('creme-caramel', 'Crème caramel', ['creme caramel', 'crem caramel', 'flan'], 140, 4, 22, 0, 60, 120, ['latticino', 'processato'], { pezzo: 120 }),
+  _A('budino', 'Budino (cioccolato o vaniglia)', ['budino', 'budino al cioccolato', 'budino alla vaniglia', 'pudding'], 120, 3, 19.5, 0.5, 120, 125, ['latticino', 'processato'], { pezzo: 125 }),
+  _A('mousse-cioccolato', 'Mousse al cioccolato', ['mousse', 'mousse al cioccolato'], 280, 5, 24, 2, 60, 100, ['latticino', 'processato']),
+  _A('semifreddo', 'Semifreddo', ['semifreddo', 'semifreddo al torrone', 'parfait'], 300, 4, 30.5, 0.5, 60, 100, ['latticino', 'processato']),
+  _A('zabaione', 'Zabaione', ['zabaione', 'zabaglione'], 300, 7, 30, 0, 40, 80, ['processato']),
+  _A('crema-pasticcera', 'Crema pasticcera', ['crema pasticcera', 'crema'], 160, 4, 25, 0, 60, 50, ['latticino', 'processato'], { cucchiaio: 20 }),
+  _A('panna-montata', 'Panna montata zuccherata', ['panna montata', 'chantilly', 'panna spray'], 260, 2, 12, 0, 30, 30, ['latticino', 'grasso', 'processato'], { cucchiaio: 10 }),
+  // Gelati e freddi
+  _A('sorbetto', 'Sorbetto / gelato alla frutta', ['sorbetto', 'gelato alla frutta', 'gelato al limone', 'sorbetto al limone', 'gelato alla fragola'], 130, 0.5, 33, 1, 10, 100, ['processato']),
+  _A('granita', 'Granita', ['granita', 'granita al limone', 'granita al caffe', 'granita alle mandorle'], 90, 0, 23, 0, 5, 200, ['processato']),
+  _A('ghiacciolo', 'Ghiacciolo', ['ghiacciolo', 'ghiaccioli'], 80, 0, 20, 0, 5, 70, ['processato'], { pezzo: 70 }),
+  _A('cono-gelato', 'Cono gelato confezionato', ['cornetto gelato', 'cono confezionato', 'cono gelato confezionato', 'gelato confezionato'], 290, 4, 37, 1, 80, 80, ['cereale', 'latticino', 'processato'], { pezzo: 80 }),
+  _A('gelato-cioccolato', 'Gelato al cioccolato / creme', ['gelato al cioccolato', 'gelato alla nocciola', 'gelato al pistacchio', 'gelato stracciatella', 'gelato alla crema'], 230, 4, 28, 1.5, 70, 100, ['latticino', 'processato']),
+  // Biscotti e piccoli
+  _A('amaretti', 'Amaretti', ['amaretti', 'amaretto', 'amaretti di saronno'], 450, 8, 79.5, 2.5, 30, 20, ['frutta-secca', 'processato'], { pezzo: 6 }),
+  _A('cantucci', 'Cantucci', ['cantucci', 'cantuccini', 'biscotti di prato'], 430, 10, 69, 3, 150, 30, ['cereale', 'frutta-secca', 'processato'], { pezzo: 10 }),
+  _A('baci-dama', 'Baci di dama', ['baci di dama', 'bacio di dama'], 520, 8, 55, 3, 50, 20, ['cereale', 'frutta-secca', 'processato'], { pezzo: 10 }),
+  _A('savoiardi', 'Savoiardi', ['savoiardi', 'savoiardo', 'pavesini'], 390, 8, 81, 1, 150, 30, ['cereale', 'processato'], { pezzo: 6 }),
+  _A('wafer', 'Wafer', ['wafer', 'wafers'], 520, 6, 65, 2, 100, 30, ['cereale', 'processato'], { pezzo: 8 }),
+  _A('cookies', 'Cookies con gocce di cioccolato', ['cookies', 'cookie', 'biscotti con gocce di cioccolato'], 490, 5, 67.5, 2.5, 350, 30, ['cereale', 'processato'], { pezzo: 15 }),
+  _A('meringhe', 'Meringhe', ['meringhe', 'meringa', 'meringhette'], 390, 5, 92, 0, 120, 10, ['processato'], { pezzo: 8 }),
+  _A('macarons', 'Macarons', ['macarons', 'macaron'], 410, 7, 60, 2, 60, 15, ['frutta-secca', 'processato'], { pezzo: 12 }),
+  _A('torrone', 'Torrone', ['torrone', 'torroncino', 'torroncini'], 460, 10, 63, 3, 30, 30, ['frutta-secca', 'processato'], { pezzo: 10 }),
+  // Merende e da colazione
+  _A('merendina', 'Merendina confezionata', ['merendina', 'merendine', 'crostatina', 'tortina', 'snack dolce'], 430, 6, 59.5, 1.5, 250, 35, ['cereale', 'processato'], { pezzo: 35 }),
+  _A('muffin', 'Muffin', ['muffin', 'muffins'], 400, 6, 53.5, 1.5, 350, 80, ['cereale', 'processato'], { pezzo: 80 }),
+  _A('cupcake', 'Cupcake', ['cupcake', 'cupcakes'], 380, 4, 56, 1, 300, 70, ['cereale', 'processato'], { pezzo: 70 }),
+  _A('plumcake', 'Plumcake', ['plumcake', 'plum cake', 'plumcake allo yogurt'], 410, 6, 52, 1, 300, 35, ['cereale', 'processato'], { pezzo: 35 }),
+  _A('brownie', 'Brownie', ['brownie', 'brownies'], 466, 6, 61, 2, 290, 60, ['cereale', 'processato'], { pezzo: 60 }),
+  _A('crepe-nutella', 'Crêpe alla crema di nocciole', ['crepe', 'crepes', 'crepe alla nutella', 'crepes alla nutella', 'crepe dolce'], 330, 7, 41.5, 1.5, 120, 120, ['cereale', 'processato'], { pezzo: 120 }),
+  _A('waffle', 'Waffle', ['waffle', 'waffles', 'gaufre'], 290, 7, 34, 1, 500, 75, ['cereale', 'processato'], { pezzo: 75 }),
+  _A('pancake-dolci', 'Pancake con sciroppo', ['pancake con sciroppo', 'pancake allo sciroppo', 'pancake americani', 'pancakes con sciroppo d acero'], 230, 5, 39, 1, 400, 150, ['cereale', 'processato']),
+  _A('churros', 'Churros', ['churros', 'churro'], 420, 5, 52, 2, 300, 60, ['cereale', 'processato'], { pezzo: 20 }),
+  // Fritti di carnevale e feste
+  _A('chiacchiere', 'Chiacchiere / frappe', ['chiacchiere', 'frappe', 'bugie', 'crostoli', 'cenci', 'galani'], 480, 7, 56.5, 1.5, 100, 40, ['cereale', 'processato'], { pezzo: 8 }),
+  _A('castagnole', 'Castagnole / frittelle', ['castagnole', 'castagnola', 'frittelle', 'frittelle dolci', 'tortelli di carnevale'], 400, 6, 51, 1, 120, 60, ['cereale', 'processato'], { pezzo: 15 }),
+  _A('struffoli', 'Struffoli', ['struffoli', 'cicerchiata'], 420, 6, 61.5, 1.5, 50, 60, ['cereale', 'processato']),
+  // Cioccolato
+  _A('cioccolato-latte', 'Cioccolato al latte', ['cioccolato al latte', 'cioccolata al latte', 'tavoletta al latte'], 545, 7.5, 60.5, 1.5, 80, 20, ['latticino', 'processato'], { pezzo: 5 }),
+  _A('cioccolato-bianco', 'Cioccolato bianco', ['cioccolato bianco', 'cioccolata bianca'], 539, 6, 59.2, 0.2, 90, 20, ['latticino', 'processato'], { pezzo: 5 }),
+  _A('praline', 'Cioccolatini / praline', ['cioccolatini', 'cioccolatino', 'praline', 'pralina', 'bacio perugina', 'gianduiotti', 'gianduiotto'], 540, 7, 52, 3, 50, 20, ['frutta-secca', 'processato'], { pezzo: 10 }),
+);
+// Tag "dolce": ai nuovi qui sopra e ai dolci che c'erano già.
+{
+  const prima = ['gelato', 'biscotti', 'fondente', 'fondente-70', 'nutella', 'marmellata', 'cornetto', 'cornetto-crema', 'cornetto-cioccolato', 'cornetto-marmellata', 'cornetto-integrale',
+    'krapfen', 'maritozzo', 'baba', 'girella', 'panettone', 'pandoro', 'colomba', 'pan-brioche', 'panino-latte'];
+  const nuovi = ALIMENTI_BASE.slice(ALIMENTI_BASE.findIndex((a) => a.id === 'torta-cioccolato'));
+  for (const a of [...nuovi, ...prima.map((id) => ALIMENTI_BASE.find((x) => x.id === id)).filter(Boolean)]) if (!a.tag.includes('dolce')) a.tag.push('dolce');
+}
+
 // Formaggi (valori medi per 100 g; carboidrati TOTALI, poi fibra).
 ALIMENTI_BASE.push(
   // Italiani a pasta dura e semidura
@@ -634,6 +713,15 @@ const FAMIGLIE = {
 FAMIGLIE.pizze = FAMIGLIE.pizza;
 FAMIGLIE.formaggio = ['grana-padano', 'parmigiano', 'mozzarella', 'galbanino', 'emmental', 'scamorza', 'provolone', 'pecorino', 'asiago', 'fontina', 'caciotta', 'primo-sale', 'sottilette', 'spalmabile'];
 FAMIGLIE.formaggi = FAMIGLIE.formaggio;
+FAMIGLIE.torta = ['ciambellone', 'torta-cioccolato', 'crostata', 'torta-mele', 'cheesecake', 'torta-nonna', 'torta-ricotta', 'sacher', 'strudel', 'pastiera'];
+FAMIGLIE['fetta di torta'] = FAMIGLIE.torta;
+FAMIGLIE.dolce = ['tiramisu', 'torta-cioccolato', 'crostata', 'gelato', 'cannolo', 'pasticcini', 'panna-cotta', 'cheesecake', 'biscotti', 'cioccolato-latte'];
+FAMIGLIE.dolci = FAMIGLIE.dolce;
+FAMIGLIE.dessert = FAMIGLIE.dolce;
+FAMIGLIE.gelato = ['gelato', 'gelato-cioccolato', 'sorbetto', 'cono-gelato', 'ghiacciolo', 'granita'];
+FAMIGLIE.biscotti = ['biscotti', 'cookies', 'amaretti', 'cantucci', 'savoiardi', 'wafer', 'baci-dama'];
+FAMIGLIE.cioccolato = ['fondente', 'fondente-70', 'cioccolato-latte', 'cioccolato-bianco', 'praline'];
+FAMIGLIE.budino = ['budino', 'budino-proteico', 'creme-caramel', 'panna-cotta'];
 FAMIGLIE.brioche = FAMIGLIE.cornetto;
 FAMIGLIE.croissant = FAMIGLIE.cornetto;
 FAMIGLIE.panino = ['pane', 'ciabatta', 'pane-hamburger', 'panino-latte', 'pane-integrale', 'pane-tipo1'];
@@ -664,4 +752,4 @@ const MISURE_DEFAULT = {
   pallina: 50,
 };
 
-const TAG_DISPONIBILI = ['pesce', 'pesce-azzurro', 'carne-bianca', 'carne-rossa', 'processato', 'latticino', 'verdura', 'legume', 'frutta-secca', 'cereale', 'grasso'];
+const TAG_DISPONIBILI = ['pesce', 'pesce-azzurro', 'carne-bianca', 'carne-rossa', 'processato', 'latticino', 'verdura', 'legume', 'frutta-secca', 'cereale', 'grasso', 'dolce'];
