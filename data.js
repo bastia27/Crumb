@@ -511,6 +511,11 @@ ALIMENTI_BASE.push(
 
 // Pasta ripiena e al forno.
 ALIMENTI_BASE.push(
+  // Impasti sottili da forno (crudi, come escono dalla confezione). "foglio" = un foglio di fillo.
+  _A('pasta-fillo', 'Pasta fillo', ['pasta fillo', 'fillo', 'pasta phyllo', 'phyllo', 'filo pastry', 'pasta filo', 'fogli di pasta fillo'], 299, 7.1, 52.6, 1.9, 480, 40, ['cereale', 'processato'], { fetta: 20 }),
+  _A('pasta-sfoglia', 'Pasta sfoglia', ['pasta sfoglia', 'sfoglia', 'rotolo di pasta sfoglia', 'pasta sfoglia pronta'], 558, 7.4, 45.7, 1.5, 250, 50, ['cereale', 'processato', 'grasso']),
+  _A('pasta-brisee', 'Pasta brisée', ['pasta brisee', 'brisee', 'pasta brise', 'pasta frolla salata', 'rotolo di pasta brisee'], 450, 6, 50, 2, 350, 50, ['cereale', 'processato', 'grasso']),
+  _A('pasta-kataifi', 'Pasta kataifi', ['pasta kataifi', 'kataifi', 'kadaif', 'kadayif', 'pasta kadaif', 'pasta kataifi cruda'], 340, 9, 71, 2.5, 400, 40, ['cereale', 'processato']),
   _A('cannelloni', "Cannelloni di pasta all'uovo (secchi)", ['cannelloni', 'cannelloni secchi', 'cannelloni all uovo', 'tubi per cannelloni', 'manicotti'], 366, 13, 70.5, 2.5, 20, 80, ['cereale']),
   _A('cannelloni-carne', 'Cannelloni al forno (ripieni di carne)', ['cannelloni al forno', 'cannelloni ripieni', 'cannelloni di carne', 'cannelloni al ragu'], 165, 8.5, 15, 1, 380, 300, ['cereale', 'carne-rossa', 'latticino']),
   _A('cannelloni-ricotta', 'Cannelloni ricotta e spinaci', ['cannelloni ricotta e spinaci', 'cannelloni di magro', 'cannelloni alla ricotta'], 150, 7, 15.2, 1.2, 350, 300, ['cereale', 'latticino']),

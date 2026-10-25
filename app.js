@@ -7,7 +7,7 @@
    ================================================================ */
 
 const LS_KEY = 'crumb:v1';
-const APP_VERSION = 36; // da allineare con ?v= in index.html e CACHE in sw.js
+const APP_VERSION = 37; // da allineare con ?v= in index.html e CACHE in sw.js
 const PASTI = [
   { id: 'colazione', nome: 'Colazione' },
   { id: 'pranzo', nome: 'Pranzo' },
@@ -580,7 +580,7 @@ const NUM_WORDS = { un: 1, uno: 1, una: 1, mezzo: 0.5, mezza: 0.5, due: 2, tre: 
 const UNIT_WORDS = {
   g: 'g', gr: 'g', grammi: 'g', grammo: 'g', grm: 'g', kg: 'kg', chilo: 'kg', chili: 'kg', hg: 'hg', etto: 'hg', etti: 'hg', ml: 'ml', cl: 'cl', dl: 'dl',
   cucchiaio: 'cucchiaio', cucchiai: 'cucchiaio', cucchiaiata: 'cucchiaio', cucchiaiate: 'cucchiaio', cucchiaino: 'cucchiaino', cucchiaini: 'cucchiaino',
-  fetta: 'fetta', fette: 'fetta', fettina: 'fetta', fettine: 'fetta', porzione: 'porzione', porzioni: 'porzione', pezzo: 'pezzo', pezzi: 'pezzo',
+  fetta: 'fetta', fette: 'fetta', fettina: 'fetta', fettine: 'fetta', foglio: 'fetta', fogli: 'fetta', porzione: 'porzione', porzioni: 'porzione', pezzo: 'pezzo', pezzi: 'pezzo',
   vasetto: 'vasetto', vasetti: 'vasetto', vaschetta: 'vasetto', scatoletta: 'scatoletta', scatolette: 'scatoletta', scatola: 'scatoletta',
   manciata: 'manciata', manciate: 'manciata', pugno: 'manciata', tazza: 'tazza', tazze: 'tazza', bicchiere: 'bicchiere', bicchieri: 'bicchiere',
   confezione: 'confezione', confezioni: 'confezione', busta: 'confezione', bustina: 'bustina', bustine: 'bustina',
