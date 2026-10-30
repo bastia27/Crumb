@@ -7,7 +7,7 @@
    ================================================================ */
 
 const LS_KEY = 'crumb:v1';
-const APP_VERSION = 39; // da allineare con ?v= in index.html e CACHE in sw.js
+const APP_VERSION = 40; // da allineare con ?v= in index.html e CACHE in sw.js
 const PASTI = [
   { id: 'colazione', nome: 'Colazione' },
   { id: 'pranzo', nome: 'Pranzo' },
@@ -881,7 +881,7 @@ function setRowPick(row, entry) {
 }
 
 // Legumi e cereali: "secco/crudo" o "cotto/lessato/in scatola" scritti nella riga.
-const RX_SECCO = /\b(a crudo|secc[oa]|secch[ie]|crud[oaie])\b/g;
+const RX_SECCO = /\b(a crudo|secc[oa]|secch[ie]|crud[oaie]|surgelat[oaie]|congelat[oaie])\b/g;
 const RX_COTTO = /\b(cott[oaie]|cotti|less[oaie]|lessi|lessat[oaie]|lessati|bollit[oaie]|bolliti|in scatola|sgocciolat[oaie]|sgocciolati)\b/g;
 // Se la riga è un legume o cereale con due voci, sceglie quella giusta: cotta salvo "secco/crudo" esplicito.
 // Restituisce null per tutto il resto (es. "prosciutto crudo", "pomodori secchi" restano come sono).
@@ -927,6 +927,13 @@ function parseInput(text) {
       setRowPick(row, cot);
       rows.push(row);
       continue;
+    }
+    // "surgelati/congelati" su alimenti senza voce surgelata a parte (piselli, spinaci…): conta il nome senza.
+    const RX_GELO = /\b(surgelat|congelat)[oaie]\b/g;
+    if (!best?.certo && RX_GELO.test(norm(query))) {
+      const q2 = norm(query).replace(RX_GELO, ' ').replace(/\s+/g, ' ').trim();
+      const c2 = q2 ? findCandidates(q2) : [];
+      if (c2[0]?.certo) { cands = c2; best = c2[0]; row.cands = c2.slice(0, 5); }
     }
     // Parola generica ("pane", "pizza", "cornetto"): propone il tipo più comune e mostra gli altri.
     const fam = typeof FAMIGLIE !== 'undefined' && FAMIGLIE[rawTokens(query).join(' ')];

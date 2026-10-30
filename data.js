@@ -224,8 +224,9 @@ ALIMENTI_BASE.push(
   _A('patate-dolci', 'Patate dolci', ['patate dolci', 'patata dolce', 'patata americana', 'batata'], 86, 1.6, 20.1, 3, 55, 200, [], { pezzo: 200 }),
   _A('patatine-fritte', 'Patatine fritte', ['patatine fritte', 'patate fritte', 'french fries'], 312, 3.4, 41.8, 3.8, 210, 150, ['processato']),
   _A('patatine-busta', 'Patatine in busta', ['patatine', 'patatine in busta', 'chips'], 527, 6.6, 53, 4, 500, 30, ['processato'], { confezione: 30 }),
-  // San Carlo Patasnella (−50% grassi): valori medi da etichetta, da verificare sulla confezione.
-  _A('patasnella', 'Patatine Patasnella (San Carlo)', ['patasnella', 'patatine patasnella', 'patasnella san carlo', 'san carlo patasnella', 'patatine light', 'patatine meno grassi'], 446, 6.6, 63, 4.6, 440, 25, ['processato'], { confezione: 25, pezzo: 25 }),
+  // Pizzoli Patasnella (surgelate, poco olio, per forno e friggitrice ad aria): voce cotta e voce surgelata.
+  _A('patasnella', 'Patasnella Pizzoli (cotte)', ['patasnella', 'patatine patasnella', 'patasnella pizzoli', 'pizzoli patasnella', 'patatine friggitrice ad aria', 'patatine air fryer', 'patasnella cotte', 'patasnella in friggitrice'], 198, 3.8, 36.1, 3.8, 60, 120, ['processato'], { confezione: 100 }),
+  _A('patasnella-surgelate', 'Patasnella Pizzoli (crude, surgelate)', ['patasnella surgelate', 'patasnella crude', 'patasnella congelate', 'patasnella dalla busta'], 129, 2.5, 23.5, 2.5, 40, 150, ['processato'], { confezione: 150 }),
 
   // Legumi
   _A('piselli', 'Piselli', ['piselli', 'pisellini'], 81, 5.4, 14.5, 5.1, 5, 100, ['legume']),
@@ -436,7 +437,7 @@ ALIMENTI_BASE.push(
   _A('basilico', 'Basilico', ['basilico', 'foglie di basilico'], 23, 3.2, 2.7, 1.6, 4, 5, ['verdura']),
   _A('capperi', 'Capperi', ['capperi', 'cappero'], 23, 2.4, 4.9, 3.2, 2350, 10, ['verdura', 'processato'], { cucchiaio: 9, cucchiaino: 3 }),
   _A('concentrato', 'Concentrato di pomodoro', ['concentrato di pomodoro', 'concentrato', 'pomodoro concentrato'], 82, 4.3, 18.9, 4.1, 59, 15, ['verdura'], { cucchiaio: 15, cucchiaino: 5 }),
-  _A('verdure-surgelate', 'Verdure miste surgelate', ['verdure miste surgelate', 'misto per wok', 'verdure per wok', 'contorno di verdure surgelate'], 35, 2, 7.3, 2.8, 30, 200, ['verdura']),
+  _A('verdure-surgelate', 'Verdure miste surgelate', ['verdure miste surgelate', 'verdure surgelate', 'verdure congelate', 'misto di verdure surgelate', 'misto per wok', 'verdure per wok', 'contorno di verdure surgelate'], 35, 2, 7.3, 2.8, 30, 200, ['verdura']),
 );
 
 // — Ingredienti per le cucine del mondo (valori per 100 g).
@@ -641,6 +642,7 @@ ALIMENTI_BASE.push(
 ALIMENTI_BASE.find((a) => a.id === 'galbanino').stima = true;
 ALIMENTI_BASE.find((a) => a.id === 'sottilette').stima = true;
 ALIMENTI_BASE.find((a) => a.id === 'patasnella').stima = true;
+ALIMENTI_BASE.find((a) => a.id === 'patasnella-surgelate').stima = true;
 // "grana" ora ha la sua voce: il parmigiano tiene solo i suoi nomi.
 {
   const pr = ALIMENTI_BASE.find((a) => a.id === 'parmigiano');
@@ -699,6 +701,7 @@ const COTTURA = [
   ['orzo-cotto', 'orzo', 'cotto'], ['farro-cotto', 'farro', 'cotto'], ['quinoa-cotta', 'quinoa', 'cotto'],
   ['couscous-cotto', 'couscous', 'cotto'], ['bulgur-cotto', 'bulgur', 'cotto'], ['grano-saraceno-cotto', 'grano-saraceno', 'cotto'],
   ['polenta-cotta', 'polenta', 'cotto'], ['avena-cotta', 'avena', 'secco'],
+  ['patasnella', 'patasnella-surgelate', 'cotto'],
 ];
 const COTTURA_DI = {};
 for (const [cotto, secco, def] of COTTURA) {
