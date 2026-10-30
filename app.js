@@ -7,7 +7,7 @@
    ================================================================ */
 
 const LS_KEY = 'crumb:v1';
-const APP_VERSION = 38; // da allineare con ?v= in index.html e CACHE in sw.js
+const APP_VERSION = 39; // da allineare con ?v= in index.html e CACHE in sw.js
 const PASTI = [
   { id: 'colazione', nome: 'Colazione' },
   { id: 'pranzo', nome: 'Pranzo' },
@@ -583,7 +583,7 @@ const UNIT_WORDS = {
   fetta: 'fetta', fette: 'fetta', fettina: 'fetta', fettine: 'fetta', foglio: 'fetta', fogli: 'fetta', porzione: 'porzione', porzioni: 'porzione', pezzo: 'pezzo', pezzi: 'pezzo', quadretto: 'pezzo', quadretti: 'pezzo', quadratino: 'pezzo', quadratini: 'pezzo',
   vasetto: 'vasetto', vasetti: 'vasetto', vaschetta: 'vasetto', scatoletta: 'scatoletta', scatolette: 'scatoletta', scatola: 'scatoletta',
   manciata: 'manciata', manciate: 'manciata', pugno: 'manciata', tazza: 'tazza', tazze: 'tazza', bicchiere: 'bicchiere', bicchieri: 'bicchiere',
-  confezione: 'confezione', confezioni: 'confezione', busta: 'confezione', bustina: 'bustina', bustine: 'bustina',
+  confezione: 'confezione', confezioni: 'confezione', busta: 'confezione', buste: 'confezione', pacchetto: 'confezione', pacchetti: 'confezione', pacchettino: 'confezione', pacchettini: 'confezione', bustina: 'bustina', bustine: 'bustina',
   pizzico: 'pizzico', pizzichi: 'pizzico', tazzina: 'tazzina', tazzine: 'tazzina', bottiglia: 'bottiglia', bottiglie: 'bottiglia', lattina: 'lattina', lattine: 'lattina',
   calice: 'calice', calici: 'calice', bicchierino: 'bicchierino', bicchierini: 'bicchierino', pinta: 'pinta', pinte: 'pinta', pallina: 'pallina', palline: 'pallina', filo: 'filo', noce: 'noce', noci_u: 'noce',
   quadratino: 'quadratino', quadratini: 'quadratino', misurino: 'misurino', misurini: 'misurino',

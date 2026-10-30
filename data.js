@@ -224,6 +224,8 @@ ALIMENTI_BASE.push(
   _A('patate-dolci', 'Patate dolci', ['patate dolci', 'patata dolce', 'patata americana', 'batata'], 86, 1.6, 20.1, 3, 55, 200, [], { pezzo: 200 }),
   _A('patatine-fritte', 'Patatine fritte', ['patatine fritte', 'patate fritte', 'french fries'], 312, 3.4, 41.8, 3.8, 210, 150, ['processato']),
   _A('patatine-busta', 'Patatine in busta', ['patatine', 'patatine in busta', 'chips'], 527, 6.6, 53, 4, 500, 30, ['processato'], { confezione: 30 }),
+  // San Carlo Patasnella (−50% grassi): valori medi da etichetta, da verificare sulla confezione.
+  _A('patasnella', 'Patatine Patasnella (San Carlo)', ['patasnella', 'patatine patasnella', 'patasnella san carlo', 'san carlo patasnella', 'patatine light', 'patatine meno grassi'], 446, 6.6, 63, 4.6, 440, 25, ['processato'], { confezione: 25, pezzo: 25 }),
 
   // Legumi
   _A('piselli', 'Piselli', ['piselli', 'pisellini'], 81, 5.4, 14.5, 5.1, 5, 100, ['legume']),
@@ -638,6 +640,7 @@ ALIMENTI_BASE.push(
 );
 ALIMENTI_BASE.find((a) => a.id === 'galbanino').stima = true;
 ALIMENTI_BASE.find((a) => a.id === 'sottilette').stima = true;
+ALIMENTI_BASE.find((a) => a.id === 'patasnella').stima = true;
 // "grana" ora ha la sua voce: il parmigiano tiene solo i suoi nomi.
 {
   const pr = ALIMENTI_BASE.find((a) => a.id === 'parmigiano');
