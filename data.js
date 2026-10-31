@@ -258,7 +258,7 @@ ALIMENTI_BASE.push(
   _A('pane', 'Pane bianco', ['pane', 'pane bianco', 'pane comune', 'fetta di pane', 'rosetta', 'baguette', 'pane casereccio'], 270, 8.5, 56, 3, 500, 50, ['cereale'], { fetta: 30, pezzo: 60 }),
   _A('pane-segale', 'Pane di segale', ['pane di segale', 'pane nero', 'segale'], 259, 8.5, 47.9, 5.8, 603, 50, ['cereale'], { fetta: 30 }),
   _A('pane-proteico', 'Pane proteico / low carb', ['pane proteico', 'pane low carb', 'pane keto'], 265, 23, 19, 12, 500, 70, ['cereale'], { fetta: 35 }),
-  _A('fette-biscottate', 'Fette biscottate', ['fette biscottate', 'fetta biscottata'], 405, 11.3, 74.5, 3.5, 450, 20, ['cereale'], { pezzo: 9, fetta: 9 }),
+  _A('fette-biscottate', 'Fette biscottate', ['fette biscottate', 'fetta biscottata', 'biscottate', 'biscottata'], 405, 11.3, 74.5, 3.5, 450, 20, ['cereale'], { pezzo: 9, fetta: 9 }),
   _A('crackers', 'Crackers', ['crackers', 'cracker', 'craker'], 428, 9.4, 69, 3, 700, 25, ['cereale', 'processato'], { pezzo: 6, confezione: 25 }),
   _A('gallette', 'Gallette di riso', ['gallette', 'gallette di riso', 'gallette di mais'], 387, 8, 81.5, 3, 20, 16, ['cereale'], { pezzo: 8 }),
   _A('grissini', 'Grissini', ['grissini', 'grissino'], 410, 12, 68.5, 3.5, 700, 20, ['cereale', 'processato'], { pezzo: 5 }),
@@ -471,8 +471,8 @@ ALIMENTI_BASE.push(
   _A('pane-olive', 'Pane alle olive', ['pane alle olive', 'pane con le olive'], 270, 8, 50, 3, 700, 60, ['cereale'], { fetta: 35 }),
   _A('pane-noci', 'Pane alle noci', ['pane alle noci', 'pane con le noci'], 300, 9.5, 48, 4.5, 450, 50, ['cereale'], { fetta: 35 }),
   _A('pane-senza-glutine', 'Pane senza glutine', ['pane senza glutine', 'pane gluten free'], 260, 3, 54, 6, 500, 50, ['cereale'], { fetta: 30 }),
-  _A('pancarre', 'Pancarré / pane in cassetta', ['pancarre', 'pan carre', 'pane in cassetta', 'pane a cassetta', 'pane per tramezzini', 'pane da toast', 'pan bauletto'], 280, 8.5, 53, 3, 520, 50, ['cereale'], { fetta: 25 }),
-  _A('pancarre-integrale', 'Pancarré integrale', ['pancarre integrale', 'pan carre integrale', 'pane in cassetta integrale', 'pan bauletto integrale', 'pane da toast integrale'], 255, 9.5, 49, 6.5, 480, 50, ['cereale'], { fetta: 25 }),
+  _A('pancarre', 'Pancarré / pane in cassetta', ['pancarre', 'pan carre', 'pane in cassetta', 'pane a cassetta', 'pane per tramezzini', 'pane da toast'], 280, 8.5, 53, 3, 520, 50, ['cereale'], { fetta: 25 }),
+  _A('pancarre-integrale', 'Pancarré integrale', ['pancarre integrale', 'pan carre integrale', 'pane in cassetta integrale', 'pane da toast integrale'], 255, 9.5, 49, 6.5, 480, 50, ['cereale'], { fetta: 25 }),
   _A('panino-latte', 'Panini al latte', ['panini al latte', 'panino al latte', 'paninetti al latte'], 320, 9, 57, 2.5, 450, 60, ['cereale', 'latticino'], { pezzo: 30 }),
   _A('pane-hamburger', 'Panino da hamburger / hot dog', ['pane per hamburger', 'panino per hamburger', 'pane da hamburger', 'bun', 'buns', 'pane per hot dog', 'panino hot dog'], 280, 9.5, 52, 2.5, 480, 70, ['cereale'], { pezzo: 70 }),
   _A('pan-brioche', 'Pan brioche', ['pan brioche', 'pan brioscia', 'pane brioche'], 330, 8, 56, 2, 380, 60, ['cereale', 'processato'], { fetta: 30 }),
@@ -603,6 +603,22 @@ ALIMENTI_BASE.push(
   for (const a of [...nuovi, ...prima.map((id) => ALIMENTI_BASE.find((x) => x.id === id)).filter(Boolean)]) if (!a.tag.includes('dolce')) a.tag.push('dolce');
 }
 
+// Mulino Bianco: pani confezionati. Valori medi da etichetta (da verificare sulla confezione);
+// carboidrati totali = carboidrati in etichetta + fibre, come per gli altri alimenti del database.
+ALIMENTI_BASE.push(
+  _A('mb-bauletto-bianco', 'Pan Bauletto Bianco (Mulino Bianco)', ['pan bauletto bianco', 'pan bauletto mulino bianco', 'pan bauletto classico', 'bauletto bianco'], 277, 9.1, 50.3, 3.3, 480, 50, ['cereale', 'processato'], { fetta: 25 }),
+  _A('mb-bauletto-integrale', 'Pan Bauletto Integrale (Mulino Bianco)', ['pan bauletto integrale', 'bauletto integrale', 'pan bauletto integrale mulino bianco'], 248, 10.5, 45, 7.5, 440, 50, ['cereale', 'processato'], { fetta: 25 }),
+  _A('mb-bauletto-cereali', 'Pan Bauletto Cereali e Semi (Mulino Bianco)', ['pan bauletto cereali', 'pan bauletto ai cereali', 'pan bauletto cereali e semi', 'bauletto cereali'], 275, 11, 44.5, 6.5, 440, 50, ['cereale', 'processato'], { fetta: 25 }),
+  _A('mb-bauletto-granoduro', 'Pan Bauletto Grano Duro (Mulino Bianco)', ['pan bauletto grano duro', 'pan bauletto di grano duro', 'bauletto grano duro'], 268, 9.5, 51, 3.5, 480, 50, ['cereale', 'processato'], { fetta: 25 }),
+  _A('mb-pancarre', 'Pancarrè (Mulino Bianco)', ['pancarre mulino bianco', 'pan carre mulino bianco', 'pancarre classico mulino bianco'], 270, 8.5, 49.8, 2.8, 520, 36, ['cereale', 'processato'], { fetta: 18 }),
+  _A('mb-pancarre-integrale', 'Pancarrè Integrale (Mulino Bianco)', ['pancarre integrale mulino bianco', 'pan carre integrale mulino bianco'], 250, 10, 46, 7, 480, 36, ['cereale', 'processato'], { fetta: 18 }),
+  _A('mb-fette-dorate', 'Fette Biscottate Le Dorate (Mulino Bianco)', ['fette biscottate mulino bianco', 'biscottate mulino bianco', 'le dorate', 'fette dorate', 'fette biscottate dorate', 'fette biscottate le dorate'], 410, 11.5, 75.5, 3.5, 560, 27, ['cereale', 'processato'], { fetta: 9, pezzo: 9 }),
+  _A('mb-fette-integrali', 'Fette Biscottate Integrali (Mulino Bianco)', ['fette biscottate integrali mulino bianco', 'fette integrali mulino bianco', 'fette biscottate integrali', 'biscottate integrali'], 385, 13, 72.5, 9.5, 480, 27, ['cereale', 'processato'], { fetta: 9, pezzo: 9 }),
+  _A('mb-piadelle', 'Piadelle (Mulino Bianco)', ['piadelle', 'piadella', 'piadelle mulino bianco', 'piadina mulino bianco'], 310, 8, 52.5, 2.5, 640, 75, ['cereale', 'processato'], { pezzo: 75 }),
+  _A('mb-pangoccioli', 'PanGoccioli (Mulino Bianco)', ['pangoccioli', 'pan goccioli', 'pangocciolo', 'pangoccioli mulino bianco'], 386, 7.5, 61.5, 3, 240, 38, ['cereale', 'processato', 'dolce'], { pezzo: 38 }),
+);
+for (const a of ALIMENTI_BASE) if (a.id.startsWith('mb-')) a.stima = true;
+
 // Formaggi (valori medi per 100 g; carboidrati TOTALI, poi fibra).
 ALIMENTI_BASE.push(
   // Italiani a pasta dura e semidura
@@ -731,6 +747,9 @@ FAMIGLIE.budino = ['budino', 'budino-proteico', 'creme-caramel', 'panna-cotta'];
 FAMIGLIE.brioche = FAMIGLIE.cornetto;
 FAMIGLIE.croissant = FAMIGLIE.cornetto;
 FAMIGLIE.panino = ['pane', 'ciabatta', 'pane-hamburger', 'panino-latte', 'pane-integrale', 'pane-tipo1'];
+FAMIGLIE['pan bauletto'] = ['mb-bauletto-bianco', 'mb-bauletto-integrale', 'mb-bauletto-cereali', 'mb-bauletto-granoduro', 'pancarre'];
+FAMIGLIE['mulino bianco'] = ['mb-bauletto-bianco', 'mb-bauletto-integrale', 'mb-bauletto-cereali', 'mb-bauletto-granoduro', 'mb-pancarre', 'mb-pancarre-integrale', 'mb-fette-dorate', 'mb-fette-integrali', 'mb-piadelle', 'mb-pangoccioli'];
+FAMIGLIE['pane mulino bianco'] = FAMIGLIE['mulino bianco'];
 
 // Grammi per le misure casalinghe quando l'alimento non ne definisce una propria.
 const MISURE_DEFAULT = {
