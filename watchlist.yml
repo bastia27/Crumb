@@ -1,0 +1,11 @@
+# Titoli che seguo. Per aggiungerne uno copia il blocco di GOOGL e cambia i valori.
+# ticker: simbolo Yahoo (es. BRK-B) · prezzi in $ · data_aggiunta in formato AAAA-MM-GG
+# obiettivo: prezzo obiettivo in $ (lascia null se non deciso) · tranche: 3 prezzi decrescenti
+
+- ticker: GOOGL
+  data_aggiunta: 2026-11-18
+  prezzo_riferimento: 282.44
+  perche: "da compilare"
+  obiettivo: null
+  smentita: "da compilare"
+  tranche: [280, 272, 260]

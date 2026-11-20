@@ -1,0 +1,98 @@
+name: Report settimanale
+
+on:
+  schedule:
+    # GitHub usa l'ora UTC: le due righe coprono ora solare (06:00 UTC) e legale (05:00 UTC).
+    # Il primo step lascia proseguire solo quella che corrisponde alle 7:00 in Italia.
+    - cron: "0 5 * * 1"
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency: report
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      OWNER: ${{ github.repository_owner }}
+    steps:
+      - name: Controlla l'orario italiano
+        id: orario
+        run: |
+          OFFSET=$(TZ=Europe/Rome date +%z)   # +0100 solare, +0200 legale
+          ESEGUI=true
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            if [ "${{ github.event.schedule }}" = "0 5 * * 1" ] && [ "$OFFSET" != "+0200" ]; then ESEGUI=false; fi
+            if [ "${{ github.event.schedule }}" = "0 6 * * 1" ] && [ "$OFFSET" != "+0100" ]; then ESEGUI=false; fi
+          fi
+          echo "esegui=$ESEGUI" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        if: steps.orario.outputs.esegui == 'true'
+
+      - uses: actions/setup-python@v5
+        if: steps.orario.outputs.esegui == 'true'
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Esegui lo screening
+        id: screen
+        if: steps.orario.outputs.esegui == 'true'
+        continue-on-error: true
+        run: |
+          pip install -q -r requirements.txt
+          python screen.py 2>&1 | tee screen.log
+          exit ${PIPESTATUS[0]}
+
+      - name: Prepara le label
+        if: steps.orario.outputs.esegui == 'true'
+        run: |
+          gh label create AZIONE --color D73A4A --description "Evento importante in watchlist" --force
+          gh label create settimanale --color 8B949E --description "Report senza novità" --force
+          gh label create ERRORE --color FBCA04 --description "Lo script è fallito" --force
+
+      - name: Chiudi la issue della settimana prima
+        if: steps.orario.outputs.esegui == 'true'
+        run: |
+          for L in AZIONE settimanale ERRORE; do
+            for N in $(gh issue list --state open --label "$L" --json number --jq '.[].number'); do
+              gh issue close "$N" --reason completed --comment "Sostituita dal nuovo report."
+            done
+          done
+
+      - name: Apri la issue del report
+        if: steps.orario.outputs.esegui == 'true' && steps.screen.outcome == 'success'
+        run: |
+          gh issue create --title "$(cat out/titolo.txt)" --body-file out/report.md \
+            --label "$(cat out/label.txt)" --assignee "$OWNER"
+
+      - name: Apri la issue di errore
+        if: steps.orario.outputs.esegui == 'true' && steps.screen.outcome != 'success'
+        run: |
+          {
+            echo "⚠️ Lo script non è riuscito a produrre il report."
+            echo "Esecuzione: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo "Ora: $(TZ=Europe/Rome date '+%d/%m/%Y %H:%M') (ora italiana)"
+            echo
+            echo '```'
+            tail -n 60 screen.log 2>/dev/null || echo "log non disponibile"
+            echo '```'
+          } > errore.md
+          gh issue create --title "⚠️ DEPREZZATI | ERRORE | $(TZ=Europe/Rome date +%d/%m/%Y)" \
+            --body-file errore.md --label ERRORE --assignee "$OWNER"
+
+      - name: Salva stato e cache dell'universo
+        if: steps.orario.outputs.esegui == 'true' && steps.screen.outcome == 'success'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add stato.json universo_sp500.csv
+          git diff --cached --quiet || { git commit -m "Stato report $(date +%F)" && git push; }

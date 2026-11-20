@@ -1,0 +1,22 @@
+# Soglie e universo del report DEPREZZATI. Modifica i numeri e fai commit.
+
+universo:
+  cap_minima_miliardi: 10        # solo titoli S&P 500 con capitalizzazione > 10 mld $
+  aggiorna_lista_ogni_giorni: 30 # ogni quanto riscaricare la lista componenti (cache: universo_sp500.csv)
+
+candidati:
+  calo_minimo_dal_massimo: 25    # % minima di calo dal massimo a 52 settimane
+  quanti: 10                     # quanti candidati mostrare (solo 🟢 e 🟡)
+
+trappola:                        # criteri del semaforo "rischio trappola"
+  fcf_anni_positivi_min: 3       # FCF positivo in almeno N degli ultimi 4 anni
+  ricavi_anni_calo_max: 2        # fallisce se i ricavi calano per N anni di fila
+  debito_netto_ebitda_max: 3     # debito netto / EBITDA deve essere sotto questo valore
+  crescita_azioni_max: 3         # % massima di crescita annua delle azioni in circolazione
+  # 0 criteri falliti = 🟢 · 1 fallito o dati mancanti = 🟡 · 2 o più falliti = 🔴
+
+watchlist:
+  mesi_da_rivedere: 6            # oltre questa durata il titolo va rivisto (evento 🚨)
+  giorni_finestra_tranche: 7     # una tranche conta come "toccata" se il minimo di questi giorni ci è arrivato
+
+benchmark: ACWI                  # ETF di confronto per la Sezione 3
